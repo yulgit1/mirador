@@ -2,6 +2,31 @@ import { Canvas, AnnotationPage, Annotation } from 'manifesto.js';
 import { getIiifResourceImageService } from './iiif';
 
 /**
+ * Returns the [x, y, w, h] pixel region of an ImageApiSelector on a SpecificResource
+ * @private
+ */
+function imageApiSelectorRegion(json) {
+  const selector = [json.selector].flat().find((s) => s && s.type === 'ImageApiSelector');
+  const match = selector?.region?.match(/^(\d+),(\d+),(\d+),(\d+)$/);
+  if (!match) return undefined;
+  return match.slice(1).map((str) => parseInt(str, 10));
+}
+
+/**
+ * Unwraps a SpecificResource image body into its source, keeping any ImageApiSelector region
+ * @private
+ */
+function unwrapSpecificResource(json) {
+  if (!json || json.type !== 'SpecificResource' || !json.source) return { json };
+  const source = typeof json.source === 'string' ? { id: json.source } : json.source;
+  const region = imageApiSelectorRegion(json);
+  const sourceId = source.id || source['@id'];
+  const id = json.id || (region ? `${sourceId}#xywh=${region.join(',')}` : sourceId);
+
+  return { json: { ...source, id }, region };
+}
+
+/**
  * MiradorCanvas - adds additional, testable logic around Manifesto's Canvas
  * https://iiif-commons.github.io/manifesto/classes/_canvas_.manifesto.canvas.html
  */
@@ -76,12 +101,14 @@ export default class MiradorCanvas {
       const type = resource.type || resource.getProperty('type');
       switch (type) {
         case 'Choice': {
-          return new Canvas({ images: resource.items.map((r) => ({ resource: r })) }, this.canvas.options)
+          const items = resource.items.map(unwrapSpecificResource);
+          return new Canvas({ images: items.map(({ json }) => ({ resource: json })) }, this.canvas.options)
             .getImages()
             .map((img, index) => {
               const r = img.getResource();
               if (r) {
                 r.preferred = !index;
+                if (items[index].region) r.region = items[index].region;
               }
               return r;
             });
@@ -103,6 +130,13 @@ export default class MiradorCanvas {
               }
               return r;
             });
+        }
+        case 'SpecificResource': {
+          const { json, region } = unwrapSpecificResource(resource.__jsonld);
+          const r = new Canvas({ images: [{ resource: json }] }, this.canvas.options).getImages()[0].getResource();
+          r.preferred = true;
+          if (region) r.region = region;
+          return r;
         }
         default: {
           const r = resource;
@@ -165,7 +199,9 @@ export default class MiradorCanvas {
    */
   resourceAnnotation(id) {
     return this.resourceAnnotations.find(
-      (anno) => anno.getResource().id === id || new Array(anno.getBody()).flat().some((body) => body.id === id),
+      (anno) =>
+        anno.getResource().id === id ||
+        new Array(anno.getBody()).flat().some((body) => body.id === id || unwrapSpecificResource(body.__jsonld).json.id === id),
     );
   }
 

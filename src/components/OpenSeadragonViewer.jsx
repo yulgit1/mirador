@@ -114,12 +114,14 @@ export function OpenSeadragonViewer({
         const fitBounds = canvasWorld.contentResourceToWorldCoordinates(contentResource);
         const index = canvasWorld.layerIndexOfImageResource(contentResource);
         const opacity = canvasWorld.layerOpacityOfImageResource(contentResource);
+        const clip = canvasWorld.contentResourceClip(contentResource);
 
         return (
           <TileSource
             key={infoResponse.id}
             tileSource={infoResponse.json}
             fitBounds={fitBounds}
+            clip={clip}
             index={index}
             opacity={opacity}
           />
@@ -134,9 +136,17 @@ export function OpenSeadragonViewer({
         const fitBounds = canvasWorld.contentResourceToWorldCoordinates(contentResource);
         const index = canvasWorld.layerIndexOfImageResource(contentResource);
         const opacity = canvasWorld.layerOpacityOfImageResource(contentResource);
+        const clip = canvasWorld.contentResourceClip(contentResource);
 
         return (
-          <TileSource key={contentResource.id} url={contentResource.id} fitBounds={fitBounds} index={index} opacity={opacity} />
+          <TileSource
+            key={contentResource.id}
+            url={contentResource.id}
+            fitBounds={fitBounds}
+            clip={clip}
+            index={index}
+            opacity={opacity}
+          />
         );
       })}
       {drawAnnotations && <AnnotationsOverlay viewer={viewer} windowId={windowId} />}

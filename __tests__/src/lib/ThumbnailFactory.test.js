@@ -1,6 +1,8 @@
 import { ManifestResource, Resource, Service, Utils } from 'manifesto.js';
 import getThumbnail, { ThumbnailFactory } from '../../../src/lib/ThumbnailFactory';
 import fixture from '../../fixtures/version-2/019.json';
+import specificResourceFixture from '../../fixtures/version-3/choice-specific-resource.json';
+import MiradorCanvas from '../../../src/lib/MiradorCanvas';
 
 const manifest = Utils.parseManifest(fixture);
 const canvas = manifest.getSequences()[0].getCanvases()[0];
@@ -473,5 +475,16 @@ describe('selectBestImageSize', () => {
     });
 
     expect(ThumbnailFactory.selectBestImageSize(service, targetWidth * targetHeight)).toEqual(sizes[2]);
+  });
+  describe('with an image resource that selects a region', () => {
+    it('requests only that region', () => {
+      const [resource] = new MiradorCanvas(Utils.parseManifest(specificResourceFixture).getSequences()[0].getCanvases()[0])
+        .imageResources;
+      expect(getThumbnail(resource, { maxHeight: 120 })).toEqual({
+        height: 120,
+        url: 'https://example.org/iiif/image-a/200,100,1000,500/,120/0/default.jpg',
+        width: 240,
+      });
+    });
   });
 });

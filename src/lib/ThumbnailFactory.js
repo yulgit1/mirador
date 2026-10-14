@@ -136,6 +136,23 @@ class ThumbnailFactory {
 
     if (!service) return ThumbnailFactory.staticImageUrl(resource);
 
+    // The resource selects only part of its source image (e.g. an ImageApiSelector region)
+    if (resource.region && !isLevel0ImageProfile(service)) {
+      const [, , regionWidth, regionHeight] = resource.region;
+      const regionThumbHeight = Math.min(maxHeight, regionHeight);
+      return {
+        height: regionThumbHeight,
+        url: [
+          service.id.replace(/\/+$/, ''),
+          resource.region.join(','),
+          `,${regionThumbHeight}`,
+          0,
+          `${Utils.getImageQuality(service.getProfile())}.${this.getFormat(service)}`,
+        ].join('/'),
+        width: Math.round((regionThumbHeight * regionWidth) / regionHeight),
+      };
+    }
+
     // The image's actual dimensions. Upscaling is optional in the IIIF Image API (and
     // requires an explicit `^` prefix in v3), so we must not ask for a size larger than
     // the image itself; the (possibly larger) thumbnail dimensions below are used to

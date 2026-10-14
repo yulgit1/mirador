@@ -10,6 +10,7 @@ import audioFixture from '../../fixtures/version-3/0002-mvm-audio.json';
 import textFixture from '../../fixtures/version-3/text-pdf.json';
 import videoFixture from '../../fixtures/version-3/0015-start.json';
 import videoWithAnnoCaptions from '../../fixtures/version-3/video_with_annotation_captions.json';
+import specificResourceFixture from '../../fixtures/version-3/choice-specific-resource.json';
 
 describe('MiradorCanvas', () => {
   let instance;
@@ -178,6 +179,40 @@ describe('MiradorCanvas', () => {
     it('returns text', () => {
       instance = new MiradorCanvas(Utils.parseManifest(textFixture).getSequences()[0].getCanvases()[0]);
       expect(instance.textResources.length).toEqual(1);
+    });
+  });
+  describe('SpecificResource image bodies', () => {
+    beforeEach(() => {
+      instance = new MiradorCanvas(Utils.parseManifest(specificResourceFixture).getSequences()[0].getCanvases()[0]);
+    });
+
+    it('unwraps Choice items to their source image', () => {
+      const [first, second] = instance.imageResources;
+      expect(first.getType()).toEqual('image');
+      expect(first.getWidth()).toEqual(2000);
+      expect(second.getHeight()).toEqual(2000);
+      expect(instance.imageServiceIds).toEqual(['https://example.org/iiif/image-a', 'https://example.org/iiif/image-b']);
+    });
+
+    it('keeps the ImageApiSelector region and preferred option', () => {
+      const [first, second] = instance.imageResources;
+      expect(first.region).toEqual([200, 100, 1000, 500]);
+      expect(first.preferred).toBe(true);
+      expect(second.region).toEqual([0, 0, 2000, 1000]);
+      expect(second.preferred).toBe(false);
+    });
+
+    it('uses the SpecificResource id, or derives one from the source and region', () => {
+      expect(instance.imageResources.map((r) => r.id)).toEqual([
+        'https://example.org/iiif/image-a/full/max/0/default.jpg#xywh=200,100,1000,500',
+        'https://example.org/iiif/image-b/specific-resource',
+      ]);
+    });
+
+    it('finds the containing annotation by the derived id', () => {
+      expect(
+        instance.resourceAnnotation('https://example.org/iiif/image-a/full/max/0/default.jpg#xywh=200,100,1000,500').id,
+      ).toEqual('https://example.org/iiif/choice-specific-resource/annotation/1');
     });
   });
 });

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="theme-color" content="#000000">
+    <title>Mirador: stitch two images</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500">
+  </head>
+  <body>
+    <div id="mirador" style="position: absolute; top: 0; bottom: 0; left: 0; right: 0;"></div>
+    <script type="module">
+      import Mirador from '../src';
+      import { LEFT_WINDOW_ID, RIGHT_WINDOW_ID, stitchingPlugins } from './stitching/index.js';
+
+      // Override the manifests from the URL, e.g. ?left=https://...&right=https://...
+      const params = new URLSearchParams(window.location.search);
+      const left = params.get('left') || 'https://manifests.collections.yale.edu/ycba/obj/1096';
+      const right = params.get('right') || 'https://manifests.collections.yale.edu/ycba/obj/49305';
+
+      Mirador.viewer(
+        {
+          id: 'mirador',
+          workspace: { type: 'mosaic' },
+          windows: [
+            { id: LEFT_WINDOW_ID, manifestId: left },
+            { id: RIGHT_WINDOW_ID, manifestId: right },
+          ],
+          catalog: [{ manifestId: left }, { manifestId: right }],
+        },
+        stitchingPlugins,
+      );
+    </script>
+  </body>
+</html>

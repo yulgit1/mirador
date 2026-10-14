@@ -102,6 +102,15 @@ export default class CanvasWorld {
     return [x, y, w, h];
   }
 
+  /**
+   * contentResourceClip - the region of the image (in image pixels) to show,
+   * if the contentResource selects only part of its source image. OpenSeadragon
+   * fits the clipped region into the bounds from contentResourceToWorldCoordinates.
+   */
+  contentResourceClip(contentResource) {
+    return contentResource.region;
+  }
+
   /** */
   canvasToWorldCoordinates(canvasId) {
     const canvasDimensions = this.canvasDimensions.find((c) => c.canvas.id === canvasId);

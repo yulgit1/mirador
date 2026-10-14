@@ -1,0 +1,15 @@
+I reviewed both manifests and Mirador's canvas code: your existing newark_abbey_overlay.json already layers the three images as a Choice but lacks alignment, Choice targets force all images to share one
+  placement, and IIIF can only shift/scale (not warp) images, so exact alignment between different works isn't possible. I have three decisions to confirm with you before writing the plan.
+
+Best-fit shift + scale (Recommended)
+     Compute the shift and scale that best match all the pairs (needs at least 2). Show how far off each pair is, so more points give a better fit. Mirador can display the result today.
+Full warp, like Allmaps
+     Bend the image to fit every point exactly. This needs a custom renderer, which is a much bigger project. The output would be the point pairs, not a standard IIIF placement.
+
+1. Choice + per-item crop (Recommended)
+     One Choice, as your spec asks. The left image fills the canvas; the right image gets an IIIF crop (an ImageApiSelector region) so it lines up. Mirador will need a small change to honour that crop.
+  2. Separate layers, no Choice
+     Each image is its own annotation with its own xywh position. Mirador already supports this and lists them in the Layers panel, but it isn't a Choice.
+  3. Both in one manifest
+     Write the per-item-crop Choice, and also store the raw point pairs as an annotation so a warping tool could use them later.
+

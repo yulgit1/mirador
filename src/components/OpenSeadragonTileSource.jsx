@@ -9,6 +9,7 @@ export default function OpenSeadragonTileSource({
   index = undefined,
   opacity = undefined,
   fitBounds = undefined,
+  clip = undefined,
   tileSource = {},
   url = undefined,
 }) {
@@ -21,6 +22,12 @@ export default function OpenSeadragonTileSource({
 
     tiledImage.current?.setOpacity(opacity);
   }, [opacity]);
+
+  // the clip must be set before fitting, as OSD fits the clipped region into the bounds
+  useEffect(() => {
+    tiledImage.current?.setClip(clip ? new Openseadragon.Rect(...clip) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clip?.join(',')]);
 
   useEffect(() => {
     if (!fitBounds) return;
@@ -63,6 +70,7 @@ export default function OpenSeadragonTileSource({
         tileSource: localTileSource,
         index,
         opacity,
+        clip: clip ? new Openseadragon.Rect(...clip) : undefined,
         fitBounds: fitBounds ? new Openseadragon.Rect(...fitBounds) : undefined,
 
         success: (event) => resolve(event),
@@ -97,6 +105,7 @@ export default function OpenSeadragonTileSource({
 }
 
 OpenSeadragonTileSource.propTypes = {
+  clip: PropTypes.arrayOf(PropTypes.number),
   fitBounds: PropTypes.arrayOf(PropTypes.number),
   index: PropTypes.number,
   opacity: PropTypes.number,

@@ -2,6 +2,7 @@ import { Utils } from 'manifesto.js';
 import { wrapCanvas } from '../../utils/mirador-wrappers';
 import fixture from '../../fixtures/version-2/019.json';
 import fragmentFixture from '../../fixtures/version-2/hamilton.json';
+import specificResourceFixture from '../../fixtures/version-3/choice-specific-resource.json';
 import CanvasWorld from '../../../src/lib/CanvasWorld';
 
 const canvases = Utils.parseManifest(fixture).getSequences()[0].getCanvases().map(wrapCanvas);
@@ -207,6 +208,26 @@ describe('CanvasWorld', () => {
       const [, , worldWidth, worldHeight] = world.worldBounds();
       expect(worldWidth).toBeGreaterThan(0);
       expect(worldHeight).toBeGreaterThan(0);
+    });
+  });
+  describe('image resources with a selected region', () => {
+    const world = new CanvasWorld(Utils.parseManifest(specificResourceFixture).getSequences()[0].getCanvases().map(wrapCanvas));
+    const [first, second] = world.canvases[0].imageResources;
+
+    it('places the selected region over the canvas', () => {
+      // OpenSeadragon fits the clipped region of the image into these bounds
+      expect(world.contentResourceToWorldCoordinates(first)).toEqual([0, 0, 1000, 500]);
+      expect(world.contentResourceToWorldCoordinates(second)).toEqual([0, 0, 1000, 500]);
+    });
+
+    it('returns the region to clip to', () => {
+      expect(world.contentResourceClip(first)).toEqual([200, 100, 1000, 500]);
+      expect(world.contentResourceClip(second)).toEqual([0, 0, 2000, 1000]);
+    });
+
+    it('returns no clip for a resource without a region', () => {
+      const plain = new CanvasWorld([canvases[1]]);
+      expect(plain.contentResourceClip(plain.canvases[0].imageResources[0])).toBeUndefined();
     });
   });
 });

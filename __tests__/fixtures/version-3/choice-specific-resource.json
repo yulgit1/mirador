@@ -1,0 +1,70 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "https://example.org/iiif/choice-specific-resource/manifest",
+  "type": "Manifest",
+  "label": { "en": ["Choice of cropped images"] },
+  "items": [
+    {
+      "id": "https://example.org/iiif/choice-specific-resource/canvas/1",
+      "type": "Canvas",
+      "width": 1000,
+      "height": 500,
+      "items": [
+        {
+          "id": "https://example.org/iiif/choice-specific-resource/page/1",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://example.org/iiif/choice-specific-resource/annotation/1",
+              "type": "Annotation",
+              "motivation": "painting",
+              "target": "https://example.org/iiif/choice-specific-resource/canvas/1",
+              "body": {
+                "type": "Choice",
+                "items": [
+                  {
+                    "type": "SpecificResource",
+                    "source": {
+                      "id": "https://example.org/iiif/image-a/full/max/0/default.jpg",
+                      "type": "Image",
+                      "format": "image/jpeg",
+                      "width": 2000,
+                      "height": 1500,
+                      "service": [
+                        {
+                          "@id": "https://example.org/iiif/image-a",
+                          "@type": "ImageService2",
+                          "profile": "http://iiif.io/api/image/2/level2.json"
+                        }
+                      ]
+                    },
+                    "selector": { "type": "ImageApiSelector", "region": "200,100,1000,500" }
+                  },
+                  {
+                    "id": "https://example.org/iiif/image-b/specific-resource",
+                    "type": "SpecificResource",
+                    "source": {
+                      "id": "https://example.org/iiif/image-b/full/max/0/default.jpg",
+                      "type": "Image",
+                      "format": "image/jpeg",
+                      "width": 4000,
+                      "height": 2000,
+                      "service": [
+                        {
+                          "@id": "https://example.org/iiif/image-b",
+                          "@type": "ImageService2",
+                          "profile": "http://iiif.io/api/image/2/level2.json"
+                        }
+                      ]
+                    },
+                    "selector": { "type": "ImageApiSelector", "region": "0,0,2000,1000" }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
