@@ -8,3 +8,6 @@ Configure mirador so layers are open by default like
 }
 
 Try the server with manifest=https://chit-iiif.s3.us-east-1.amazonaws.com/manifests/newark_abbey_overlay.json
+
+modification 1:
+configure mirador in layers-open.html to have black background mode
