@@ -13,3 +13,16 @@ Full warp, like Allmaps
   3. Both in one manifest
      Write the per-item-crop Choice, and also store the raw point pairs as an annotation so a warping tool could use them later.
 
+⏺ The stitching tool is built and works end to end at http://localhost:4444/demo/stitching.html. The two YCBA manifests open side by side. You click matching points and they get numbered pins, and Complete
+  produces the aligned Choice manifest. To use other manifests, add ?left=<manifest URL>&right=<manifest URL>.
+
+  How I checked it: I drove the page in headless Chrome. I clicked four landmarks on each image: the two mast tops, the abbey ruin and the fire in the barge.
+  - Fit: scale 1.5751 with an RMS error of 27 px, which is about 0.3% of the painting's width. The painting and the print are different works, so they can't match exactly.
+  - Complete: it downloaded stitched-manifest.json and opened it in a maximized window with the Layers panel showing both images by name.
+  - Alignment: with the print faded to 50%, the masts, ruin, barge and trees line up. I also read OpenSeadragon's actual placement of each image to confirm it matches the fit.
+  - Dragging: dragging a pin moves its point without panning the view or adding a new point.
+  - Tests: the full npm test passes (1320 tests; build, lint and size limit all pass), and demo/layers-open.html still shows all three layers of your overlay manifest.
+
+  What the tool does:
+  - src/components/OpenSeadragonViewer.jsx
+  - src/lib/ThumbnailFactory.js (so layer thumbnails show the crop)

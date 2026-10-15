@@ -21,18 +21,17 @@ describe('buildStitchedManifest', () => {
     right: { height: 1500, image: image('right', 2000, 1500), label: 'Right', width: 2000 },
   });
 
-  it('builds one canvas the size of the overlap with a Choice of cropped images', () => {
+  it('builds one canvas holding both images, each targeted at its fitted position', () => {
     const [canvas] = manifest.items;
-    expect([canvas.width, canvas.height]).toEqual([1000, 500]);
+    expect([canvas.width, canvas.height]).toEqual([2000, 1500]);
 
-    const annotation = canvas.items[0].items[0];
-    expect(annotation.target).toEqual(canvas.id);
-    expect(annotation.body.type).toEqual('Choice');
-    expect(annotation.body.items.map((item) => item.selector)).toEqual([
-      { region: '0,0,1000,500', type: 'ImageApiSelector' },
-      { region: '200,100,1000,500', type: 'ImageApiSelector' },
+    const annotations = canvas.items[0].items;
+    expect(annotations.map((a) => a.target)).toEqual([
+      `${canvas.id}#xywh=200,100,1000,500`,
+      `${canvas.id}#xywh=0,0,2000,1500`,
     ]);
-    expect(annotation.body.items[1].source.label).toEqual({ none: ['Right'] });
+    expect(annotations.map((a) => a.body.type)).toEqual(['Image', 'Image']);
+    expect(annotations[1].body.label).toEqual({ none: ['Right'] });
   });
 
   it('labels the manifest and records the fit', () => {
@@ -40,13 +39,13 @@ describe('buildStitchedManifest', () => {
     expect(manifest.summary.none[0]).toContain('3 point pairs');
   });
 
-  it('is readable by Mirador as two cropped layers', () => {
+  it('is readable by Mirador as two layers placed on the canvas', () => {
     const canvas = new MiradorCanvas(Utils.parseManifest(manifest).getSequences()[0].getCanvases()[0]);
-    expect(canvas.imageResources.map((r) => r.region)).toEqual([
-      [0, 0, 1000, 500],
-      [200, 100, 1000, 500],
-    ]);
     expect(canvas.imageServiceIds).toEqual(['https://example.org/iiif/left', 'https://example.org/iiif/right']);
+    expect(canvas.imageResources.map((r) => canvas.onFragment(r.id))).toEqual([
+      [200, 100, 1000, 500],
+      [0, 0, 2000, 1500],
+    ]);
   });
 
   it('returns undefined when the images do not overlap', () => {

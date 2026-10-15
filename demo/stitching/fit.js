@@ -48,37 +48,38 @@ export function fitScaleTranslate(pairs) {
 }
 
 /**
- * The area both images share, once the right image is placed onto the left one.
+ * Places both images on one canvas big enough to hold them, using left-image pixels
+ * as canvas units, so that the paired points coincide.
  *
  * @param {Object} fit - result of fitScaleTranslate
  * @param {Object} leftSize - { width, height } of the left image in pixels
  * @param {Object} rightSize - { width, height } of the right image in pixels
- * @returns {Object|undefined} { leftRegion, rightRegion, width, height } with integer [x, y, w, h]
- *   regions inside each image, or undefined if the images do not overlap
+ * @returns {Object|undefined} { leftTarget, rightTarget, width, height } with integer [x, y, w, h]
+ *   canvas targets, or undefined if the images do not overlap
  */
-export function overlapRegions({ s, tx, ty }, leftSize, rightSize) {
-  const x0 = Math.max(0, tx);
-  const y0 = Math.max(0, ty);
-  const x1 = Math.min(leftSize.width, tx + s * rightSize.width);
-  const y1 = Math.min(leftSize.height, ty + s * rightSize.height);
+export function unionLayout({ s, tx, ty }, leftSize, rightSize) {
+  const rightWidth = s * rightSize.width;
+  const rightHeight = s * rightSize.height;
 
-  if (x1 - x0 < 1 || y1 - y0 < 1) return undefined;
+  const overlapWidth = Math.min(leftSize.width, tx + rightWidth) - Math.max(0, tx);
+  const overlapHeight = Math.min(leftSize.height, ty + rightHeight) - Math.max(0, ty);
+  if (overlapWidth < 1 || overlapHeight < 1) return undefined;
 
-  const leftRegion = [Math.round(x0), Math.round(y0), Math.round(x1 - x0), Math.round(y1 - y0)];
-
-  const rightX = Math.max(0, Math.round((x0 - tx) / s));
-  const rightY = Math.max(0, Math.round((y0 - ty) / s));
-  const rightRegion = [
-    rightX,
-    rightY,
-    Math.min(rightSize.width - rightX, Math.round((x1 - x0) / s)),
-    Math.min(rightSize.height - rightY, Math.round((y1 - y0) / s)),
+  // shift everything so the canvas starts at (0, 0)
+  const originX = Math.min(0, tx);
+  const originY = Math.min(0, ty);
+  const leftTarget = [Math.round(0 - originX), Math.round(0 - originY), leftSize.width, leftSize.height];
+  const rightTarget = [
+    Math.round(tx - originX),
+    Math.round(ty - originY),
+    Math.round(rightWidth),
+    Math.round(rightHeight),
   ];
 
   return {
-    height: leftRegion[3],
-    leftRegion,
-    rightRegion,
-    width: leftRegion[2],
+    height: Math.max(leftTarget[1] + leftTarget[3], rightTarget[1] + rightTarget[3]),
+    leftTarget,
+    rightTarget,
+    width: Math.max(leftTarget[0] + leftTarget[2], rightTarget[0] + rightTarget[2]),
   };
 }

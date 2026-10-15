@@ -1,17 +1,20 @@
-import { overlapRegions } from './fit';
+import { unionLayout } from './fit';
 
-/** A Choice item showing only the given region of an image */
-function croppedImage({ image, label }, region) {
+/** A painting annotation placing one whole image at the given canvas region */
+function placedImage({ image, label }, target, canvasId, annotationId) {
   return {
-    selector: { region: region.join(','), type: 'ImageApiSelector' },
-    source: { ...image, label: { none: [label] } },
-    type: 'SpecificResource',
+    body: { ...image, label: { none: [label] } },
+    id: annotationId,
+    motivation: 'painting',
+    target: `${canvasId}#xywh=${target.join(',')}`,
+    type: 'Annotation',
   };
 }
 
 /**
- * Builds a IIIF Presentation 3 manifest with one canvas whose painting body is a
- * Choice of the two images, cropped so that the paired points line up.
+ * Builds a IIIF Presentation 3 manifest with one canvas holding both images, each
+ * in its own painting annotation targeted so that the paired points line up.
+ * Uses only plain Image bodies and xywh targets, so standard IIIF viewers can show it.
  *
  * @param {Object} params
  * @param {Object} params.left - { image, label, width, height }; image is the IIIF image body JSON
@@ -22,8 +25,8 @@ function croppedImage({ image, label }, region) {
  * @returns {Object|undefined} the manifest, or undefined if the aligned images do not overlap
  */
 export function buildStitchedManifest({ left, right, fit, pairCount, id = `urn:mirador:stitched:${crypto.randomUUID()}` }) {
-  const overlap = overlapRegions(fit, left, right);
-  if (!overlap) return undefined;
+  const layout = unionLayout(fit, left, right);
+  if (!layout) return undefined;
 
   const canvasId = `${id}/canvas/1`;
 
@@ -32,29 +35,21 @@ export function buildStitchedManifest({ left, right, fit, pairCount, id = `urn:m
     id,
     items: [
       {
-        height: overlap.height,
+        height: layout.height,
         id: canvasId,
         items: [
           {
             id: `${id}/page/1`,
             items: [
-              {
-                body: {
-                  items: [croppedImage(left, overlap.leftRegion), croppedImage(right, overlap.rightRegion)],
-                  type: 'Choice',
-                },
-                id: `${id}/annotation/1`,
-                motivation: 'painting',
-                target: canvasId,
-                type: 'Annotation',
-              },
+              placedImage(left, layout.leftTarget, canvasId, `${id}/annotation/1`),
+              placedImage(right, layout.rightTarget, canvasId, `${id}/annotation/2`),
             ],
             type: 'AnnotationPage',
           },
         ],
         label: { none: ['Stitched'] },
         type: 'Canvas',
-        width: overlap.width,
+        width: layout.width,
       },
     ],
     label: { none: [`Stitched: ${left.label} + ${right.label}`] },
