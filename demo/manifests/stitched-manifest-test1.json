@@ -1,0 +1,86 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "http://localhost:4444/demo/manifests/stitched-manifest-test1.json",
+  "items": [
+    {
+      "height": 7801,
+      "id": "urn:mirador:stitched:40886735-a019-4b0a-ac97-f425665aba36/canvas/1",
+      "items": [
+        {
+          "id": "urn:mirador:stitched:40886735-a019-4b0a-ac97-f425665aba36/page/1",
+          "items": [
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:2a6825f6-8145-42a9-9cab-4fb1bd4c764b/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:2a6825f6-8145-42a9-9cab-4fb1bd4c764b",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 6897,
+                "width": 9345,
+                "label": {
+                  "none": [
+                    "Joseph Mallord William Turner, 1775–1851, Newark Abbey, ca. 1807"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:40886735-a019-4b0a-ac97-f425665aba36/annotation/1",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:40886735-a019-4b0a-ac97-f425665aba36/canvas/1#xywh=262,60,9345,6897",
+              "type": "Annotation"
+            },
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:ec9c8281-5ae7-40f3-9af9-89876844e187/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:ec9c8281-5ae7-40f3-9af9-89876844e187",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 4922,
+                "width": 6190,
+                "label": {
+                  "none": [
+                    "Print made by Sir Emery Walker, 1851–1933, Newark Abbey on the Wey Surrey, 1903"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:40886735-a019-4b0a-ac97-f425665aba36/annotation/2",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:40886735-a019-4b0a-ac97-f425665aba36/canvas/1#xywh=0,0,9810,7801",
+              "type": "Annotation"
+            }
+          ],
+          "type": "AnnotationPage"
+        }
+      ],
+      "label": {
+        "none": [
+          "Stitched"
+        ]
+      },
+      "type": "Canvas",
+      "width": 9810
+    }
+  ],
+  "label": {
+    "none": [
+      "Stitched: Joseph Mallord William Turner, 1775–1851, Newark Abbey, ca. 1807 + Print made by Sir Emery Walker, 1851–1933, Newark Abbey on the Wey Surrey, 1903"
+    ]
+  },
+  "summary": {
+    "none": [
+      "Aligned with 8 point pairs (scale 1.5849, RMS error 85.8 px)"
+    ]
+  },
+  "type": "Manifest"
+}

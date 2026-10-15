@@ -5,6 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'url';
 import { globSync } from 'glob';
 import * as packageJson from './package.json' with { type: 'json' };
+// Vite's native config loader needs the extension
+// eslint-disable-next-line import/extensions
+import { saveManifestPlugin } from './demo/stitching/saveManifestPlugin.js';
 
 const peers = Object.keys(packageJson.peerDependencies);
 const peerPatterns = [...peers, ...peers.map((peer) => new RegExp(`^${peer}/`))];
@@ -108,6 +111,8 @@ export default defineConfig({
       },
       name: 'html-url-rewrite',
     },
+    // lets demo/stitching.html save manifests into demo/manifests/ (dev server only)
+    saveManifestPlugin({ root: import.meta.dirname }),
   ],
   resolve: {
     alias: {

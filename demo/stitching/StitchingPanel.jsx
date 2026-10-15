@@ -3,18 +3,25 @@ import PropTypes from 'prop-types';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
+import Link from '@mui/material/Link';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/DeleteSharp';
 import MiradorCanvas from '../../src/lib/MiradorCanvas';
 import { fitScaleTranslate } from './fit';
 import { buildStitchedManifest } from './buildManifest';
+import { MANIFEST_DIR, manifestFileName, SAVE_ENDPOINT } from './manifestFileName';
 import { pairColor } from './StitchingMarkers';
 
 /** Image body JSON, label and pixel size of the image showing on one side */
@@ -27,15 +34,29 @@ function sideImage(canvas, label) {
   return { height, image: { ...image.__jsonld, height, width }, label: label || canvas.id, width };
 }
 
-/** Saves the manifest as a JSON file */
-function download(manifest) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'stitched-manifest.json';
-  link.click();
-  URL.revokeObjectURL(url);
+/**
+ * Saves the manifest to demo/manifests/<fileName> through the dev server, with its
+ * id set to the URL it will be served from. Resolves to { url } or { exists: true }.
+ */
+async function saveManifest(manifest, fileName, overwrite) {
+  const id = `${window.location.origin}/${MANIFEST_DIR}/${fileName}`;
+  const query = new URLSearchParams({ name: fileName, ...(overwrite && { overwrite: '1' }) });
+  const response = await fetch(`${SAVE_ENDPOINT}?${query}`, {
+    body: JSON.stringify({ ...manifest, id }),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  });
+
+  if (response.status === 409) return { exists: true };
+  if (!response.ok) {
+    const { error } = await response.json().catch(() => ({}));
+    throw new Error(error || `Saving failed (HTTP ${response.status})`);
+  }
+  return { manifest: { ...manifest, id }, url: id };
 }
+
+/** The layers-open demo page showing the given manifest */
+const viewerUrl = (manifestUrl) => `${window.location.origin}/demo/layers-open.html?manifest=${manifestUrl}`;
 
 /** Formats an image point */
 const formatPoint = (point) => (point ? `${Math.round(point.x)}, ${Math.round(point.y)}` : '—');
@@ -54,6 +75,12 @@ export function StitchingPanel({
   targetProps = {},
 }) {
   const [error, setError] = useState(null);
+  const [pending, setPending] = useState(null);
+  const [name, setName] = useState('stitched-manifest');
+  const [nameError, setNameError] = useState(null);
+  const [exists, setExists] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedUrl, setSavedUrl] = useState(null);
   const fit = useMemo(() => fitScaleTranslate(pairs), [pairs]);
   const completePairs = pairs.filter((p) => p.left && p.right).length;
 
@@ -68,8 +95,41 @@ export function StitchingPanel({
     }
 
     setError(null);
-    download(manifest);
-    addWindow({ manifest, manifestId: manifest.id, maximized: true, sideBarOpen: true, sideBarPanel: 'layers' });
+    setNameError(null);
+    setExists(false);
+    setPending(manifest);
+  };
+
+  const closeDialog = () => setPending(null);
+
+  const save = async (overwrite = false) => {
+    const fileName = manifestFileName(name);
+    if (!fileName) {
+      setNameError('Use letters, digits, ".", "_" or "-"');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await saveManifest(pending, fileName, overwrite);
+      if (result.exists) {
+        setExists(true);
+        return;
+      }
+      setPending(null);
+      setSavedUrl(viewerUrl(result.url));
+      addWindow({
+        manifest: result.manifest,
+        manifestId: result.url,
+        maximized: true,
+        sideBarOpen: true,
+        sideBarPanel: 'layers',
+      });
+    } catch (e) {
+      setNameError(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -138,6 +198,15 @@ export function StitchingPanel({
           </Alert>
         )}
 
+        {savedUrl && (
+          <Alert severity="success" sx={{ mb: 2, wordBreak: 'break-all' }}>
+            Saved. Open it with:{' '}
+            <Link href={savedUrl} target="_blank" rel="noopener">
+              {savedUrl}
+            </Link>
+          </Alert>
+        )}
+
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button variant="outlined" onClick={clearPairs} disabled={pairs.length === 0}>
             Clear
@@ -147,6 +216,43 @@ export function StitchingPanel({
           </Button>
         </Box>
       </Paper>
+
+      <Dialog open={!!pending} onClose={closeDialog} fullWidth maxWidth="xs">
+        <DialogTitle>Save stitched manifest</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="dense"
+            label="File name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setNameError(null);
+              setExists(false);
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && !exists && save()}
+            error={!!nameError}
+            helperText={nameError || `Saved to ${MANIFEST_DIR}/${manifestFileName(name) || '…'}`}
+          />
+          {exists && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              {manifestFileName(name)} already exists. Overwrite it?
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDialog}>Cancel</Button>
+          {exists ? (
+            <Button variant="contained" color="warning" onClick={() => save(true)} disabled={saving}>
+              Overwrite
+            </Button>
+          ) : (
+            <Button variant="contained" onClick={() => save()} disabled={saving}>
+              Save
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
