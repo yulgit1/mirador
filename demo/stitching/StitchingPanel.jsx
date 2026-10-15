@@ -171,8 +171,9 @@ export function StitchingPanel({
           Point pairs
         </Typography>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Click a point on the left image, then the matching point on the right. Drag a pin to adjust it. At least 2 pairs
-          are needed; more pairs improve the fit.
+          Click "START HERE" and then "ADD RESOURCE" to upload manifests.
+          Choose 2 manifests for the right and left side and the desired image in each manifest.  Click a point on the left image, then the matching point on the right. Drag a pin to adjust it. At least 2 pairs
+          are needed; more pairs improve the fit, 8 spread through out the images are suggested.
         </Typography>
         <Typography variant="body2" component="div" sx={{ mb: 2 }}>
           {sides.left && sides.right ? (
@@ -182,7 +183,7 @@ export function StitchingPanel({
               <strong>Right:</strong> {rightLabel || sides.right.windowId}
             </>
           ) : (
-            'Open two windows side by side (Add resource) to pair their images.'
+            'Click complete when done, name and download the manifest, and send to CIA/IT'
           )}
         </Typography>
 
