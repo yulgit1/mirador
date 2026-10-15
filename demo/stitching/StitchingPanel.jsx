@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -23,6 +23,7 @@ import { fitScaleTranslate } from './fit';
 import { buildStitchedManifest } from './buildManifest';
 import { MANIFEST_DIR, manifestFileName, SAVE_ENDPOINT } from './manifestFileName';
 import { pairColor } from './StitchingMarkers';
+import { RESULT_WINDOW_PREFIX } from './selectors';
 
 /** Image body JSON, label and pixel size of the image showing on one side */
 function sideImage(canvas, label) {
@@ -85,6 +86,8 @@ export function StitchingPanel({
   pairs = [],
   rightCanvas = undefined,
   rightLabel = undefined,
+  setSides,
+  sides,
   TargetComponent,
   targetProps = {},
 }) {
@@ -97,6 +100,11 @@ export function StitchingPanel({
   const [savedUrl, setSavedUrl] = useState(null);
   const fit = useMemo(() => fitScaleTranslate(pairs), [pairs]);
   const completePairs = pairs.filter((p) => p.left && p.right).length;
+
+  // tell the reducer which windows are paired, so it can drop points when they change
+  useEffect(() => {
+    setSides(sides);
+  }, [setSides, sides]);
 
   const complete = () => {
     const left = sideImage(leftCanvas, leftLabel);
@@ -134,6 +142,7 @@ export function StitchingPanel({
       setSavedUrl(CAN_SAVE ? viewerUrl(result.url) : fileName);
       addWindow({
         manifest: result.manifest,
+        id: `${RESULT_WINDOW_PREFIX}${crypto.randomUUID()}`,
         manifestId: result.url,
         maximized: true,
         sideBarOpen: true,
@@ -164,6 +173,17 @@ export function StitchingPanel({
         <Typography variant="body2" sx={{ mb: 2 }}>
           Click a point on the left image, then the matching point on the right. Drag a pin to adjust it. At least 2 pairs
           are needed; more pairs improve the fit.
+        </Typography>
+        <Typography variant="body2" component="div" sx={{ mb: 2 }}>
+          {sides.left && sides.right ? (
+            <>
+              <strong>Left:</strong> {leftLabel || sides.left.windowId}
+              <br />
+              <strong>Right:</strong> {rightLabel || sides.right.windowId}
+            </>
+          ) : (
+            'Open two windows side by side (Add resource) to pair their images.'
+          )}
         </Typography>
 
         <Table size="small" aria-label="Point pairs" sx={{ '& .MuiTableCell-root': { px: 1, whiteSpace: 'nowrap' } }}>
@@ -288,6 +308,8 @@ StitchingPanel.propTypes = {
   pairs: PropTypes.arrayOf(PropTypes.object),
   rightCanvas: PropTypes.object,
   rightLabel: PropTypes.string,
+  setSides: PropTypes.func.isRequired,
+  sides: PropTypes.shape({ left: PropTypes.object, right: PropTypes.object }).isRequired,
   TargetComponent: PropTypes.elementType.isRequired,
   targetProps: PropTypes.object,
 };

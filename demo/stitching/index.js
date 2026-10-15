@@ -8,8 +8,10 @@ import {
   LEFT_WINDOW_ID,
   movePoint,
   RIGHT_WINDOW_ID,
+  setSides,
   stitchingReducer,
 } from './reducer';
+import { getStitchingSide, getStitchingSides } from './selectors';
 
 export { LEFT_WINDOW_ID, RIGHT_WINDOW_ID };
 
@@ -17,7 +19,10 @@ export { LEFT_WINDOW_ID, RIGHT_WINDOW_ID };
 const markersPlugin = {
   component: StitchingMarkers,
   mapDispatchToProps: { addPoint, movePoint },
-  mapStateToProps: (state) => ({ pairs: state.stitching.pairs }),
+  mapStateToProps: (state, { windowId }) => ({
+    pairs: state.stitching.pairs,
+    side: getStitchingSide(state, { windowId }),
+  }),
   mode: 'add',
   name: 'StitchingMarkers',
   target: 'OpenSeadragonViewer',
@@ -26,14 +31,20 @@ const markersPlugin = {
 /** Lists the point pairs and builds the stitched manifest */
 const panelPlugin = {
   component: StitchingPanel,
-  mapDispatchToProps: { addWindow, clearPairs, deletePair },
-  mapStateToProps: (state) => ({
-    leftCanvas: getCurrentCanvas(state, { windowId: LEFT_WINDOW_ID }),
-    leftLabel: getManifestTitle(state, { windowId: LEFT_WINDOW_ID }),
-    pairs: state.stitching.pairs,
-    rightCanvas: getCurrentCanvas(state, { windowId: RIGHT_WINDOW_ID }),
-    rightLabel: getManifestTitle(state, { windowId: RIGHT_WINDOW_ID }),
-  }),
+  mapDispatchToProps: { addWindow, clearPairs, deletePair, setSides },
+  mapStateToProps: (state) => {
+    const sides = getStitchingSides(state);
+    const canvas = (side) => side && getCurrentCanvas(state, { windowId: side.windowId });
+    const label = (side) => side && getManifestTitle(state, { windowId: side.windowId });
+    return {
+      leftCanvas: canvas(sides.left),
+      leftLabel: label(sides.left),
+      pairs: state.stitching.pairs,
+      rightCanvas: canvas(sides.right),
+      rightLabel: label(sides.right),
+      sides,
+    };
+  },
   mode: 'wrap',
   name: 'StitchingPanel',
   reducers: { stitching: stitchingReducer },

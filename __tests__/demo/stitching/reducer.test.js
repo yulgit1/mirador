@@ -3,6 +3,7 @@ import {
   clearPairs,
   deletePair,
   movePoint,
+  setSides,
   stitchingReducer,
 } from '../../../demo/stitching/reducer';
 
@@ -39,16 +40,20 @@ describe('stitchingReducer', () => {
     expect(stitchingReducer(state, clearPairs()).pairs).toEqual([]);
   });
 
-  it('clears pairs when a side switches to another canvas', () => {
-    const setCanvas = (windowId, canvasId) => ({ canvasId, type: 'mirador/SET_CANVAS', windowId });
-    let state = reduce(setCanvas('stitch-left', 'a'), addPoint('left', { x: 1, y: 1 }));
+  it('clears pairs when a side switches to another canvas or window', () => {
+    const sides = (left, right) => setSides({ left, right });
+    const start = reduce(
+      sides({ canvasId: undefined, windowId: 'w1' }, null),
+      sides({ canvasId: 'a', windowId: 'w1' }, { canvasId: 'b', windowId: 'w2' }),
+      addPoint('left', { x: 1, y: 1 }),
+    );
 
-    // the first canvas for a side, or another window changing, keeps the pairs
-    state = stitchingReducer(state, setCanvas('stitch-right', 'b'));
-    state = stitchingReducer(state, setCanvas('some-other-window', 'c'));
-    expect(state.pairs).toHaveLength(1);
+    // a canvas loading, a second window appearing, or nothing changing keeps the pairs
+    expect(start.pairs).toHaveLength(1);
+    expect(stitchingReducer(start, sides({ canvasId: 'a', windowId: 'w1' }, { canvasId: 'b', windowId: 'w2' })).pairs).toHaveLength(1);
 
-    expect(stitchingReducer(state, setCanvas('stitch-left', 'a')).pairs).toHaveLength(1);
-    expect(stitchingReducer(state, setCanvas('stitch-left', 'z')).pairs).toEqual([]);
+    expect(stitchingReducer(start, sides({ canvasId: 'z', windowId: 'w1' }, { canvasId: 'b', windowId: 'w2' })).pairs).toEqual([]);
+    expect(stitchingReducer(start, sides({ canvasId: 'b', windowId: 'w2' }, null)).pairs).toEqual([]);
+    expect(stitchingReducer(start, sides({ canvasId: 'a', windowId: 'w1' }, { canvasId: 'c', windowId: 'w3' })).pairs).toEqual([]);
   });
 });

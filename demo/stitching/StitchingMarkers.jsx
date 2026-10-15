@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import OpenSeadragon from 'openseadragon';
-import { sideOfWindow } from './reducer';
 
 const PALETTE = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45'];
 
@@ -54,8 +53,7 @@ function createPin(pair, index) {
  * Adds point pinning to a window's OpenSeadragon viewer: click to add a point,
  * drag a pin to move it.
  */
-export function StitchingMarkers({ addPoint, canvasWorld = null, movePoint, pairs = [], viewer = null, windowId }) {
-  const side = sideOfWindow(windowId);
+export function StitchingMarkers({ addPoint, canvasWorld = null, movePoint, pairs = [], side = undefined, viewer = null }) {
   const transform = useMemo(() => imageTransform(canvasWorld), [canvasWorld]);
   const draggingPin = useRef(false);
   const latest = useRef({});
@@ -137,6 +135,6 @@ StitchingMarkers.propTypes = {
   canvasWorld: PropTypes.object,
   movePoint: PropTypes.func.isRequired,
   pairs: PropTypes.arrayOf(PropTypes.object),
+  side: PropTypes.oneOf(['left', 'right']),
   viewer: PropTypes.object,
-  windowId: PropTypes.string.isRequired,
 };

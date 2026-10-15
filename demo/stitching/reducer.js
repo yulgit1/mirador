@@ -3,13 +3,12 @@ export const ActionTypes = {
   CLEAR: 'stitching/CLEAR',
   DELETE_PAIR: 'stitching/DELETE_PAIR',
   MOVE_POINT: 'stitching/MOVE_POINT',
+  SET_SIDES: 'stitching/SET_SIDES',
 };
 
+// ids of the windows stitching.html opens; any two windows on screen can be paired
 export const LEFT_WINDOW_ID = 'stitch-left';
 export const RIGHT_WINDOW_ID = 'stitch-right';
-
-/** Which side ('left' or 'right') a window is on, if any */
-export const sideOfWindow = (windowId) => ({ [LEFT_WINDOW_ID]: 'left', [RIGHT_WINDOW_ID]: 'right' })[windowId];
 
 let nextPairId = 1;
 
@@ -25,7 +24,18 @@ export const deletePair = (pairId) => ({ pairId, type: ActionTypes.DELETE_PAIR }
 /** Remove all pairs */
 export const clearPairs = () => ({ type: ActionTypes.CLEAR });
 
-const initialState = { canvasIds: {}, pairs: [] };
+/** Record which window and canvas are on each side ({ left, right } from getStitchingSides) */
+export const setSides = (sides) => ({ sides, type: ActionTypes.SET_SIDES });
+
+const initialState = { pairs: [], sides: { left: null, right: null } };
+
+/** Whether the points on one side no longer belong to what that side shows */
+function sideChanged(previous, next) {
+  if (!previous) return false;
+  if (previous.windowId !== next?.windowId) return true;
+  // a window's canvas is unset until it loads, which is not a change
+  return !!previous.canvasId && previous.canvasId !== next.canvasId;
+}
 
 /**
  * Point pairs, in image pixel coordinates of each side's current image.
@@ -54,15 +64,11 @@ export function stitchingReducer(state = initialState, action = {}) {
       return { ...state, pairs: state.pairs.filter((p) => p.id !== action.pairId) };
     case ActionTypes.CLEAR:
       return { ...state, pairs: [] };
-    case 'mirador/SET_CANVAS': {
-      const side = sideOfWindow(action.windowId);
-      if (!side) return state;
-
-      const previous = state.canvasIds[side];
-      const canvasIds = { ...state.canvasIds, [side]: action.canvasId };
+    case ActionTypes.SET_SIDES: {
+      const { sides } = action;
       // points belong to the image that was showing; once either side changes, no pair is valid
-      if (previous && previous !== action.canvasId) return { ...state, canvasIds, pairs: [] };
-      return { ...state, canvasIds };
+      const changed = sideChanged(state.sides.left, sides.left) || sideChanged(state.sides.right, sides.right);
+      return { ...state, pairs: changed ? [] : state.pairs, sides };
     }
     default:
       return state;

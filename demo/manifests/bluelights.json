@@ -1,0 +1,86 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "http://localhost:4445/demo/manifests/bluelights.json",
+  "items": [
+    {
+      "height": 8217,
+      "id": "urn:mirador:stitched:90affb38-b247-424d-bae3-4d9c6cd93911/canvas/1",
+      "items": [
+        {
+          "id": "urn:mirador:stitched:90affb38-b247-424d-bae3-4d9c6cd93911/page/1",
+          "items": [
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:c3dd8810-d35c-459b-ac76-0e1349ff4db3/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:c3dd8810-d35c-459b-ac76-0e1349ff4db3",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 7955,
+                "width": 11194,
+                "label": {
+                  "none": [
+                    "Carrick, Robert, active 1853-1895, The blue lights , [1853?]"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:90affb38-b247-424d-bae3-4d9c6cd93911/annotation/1",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:90affb38-b247-424d-bae3-4d9c6cd93911/canvas/1#xywh=0,0,11194,7955",
+              "type": "Annotation"
+            },
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:01f1d6ae-885f-464a-b590-87d3c84f6249/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:01f1d6ae-885f-464a-b590-87d3c84f6249",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 4795,
+                "width": 5961,
+                "label": {
+                  "none": [
+                    "Print made by Pellissier & Allen, active late 19th century, Rockets and Blue Lights, 1900"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:90affb38-b247-424d-bae3-4d9c6cd93911/annotation/2",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:90affb38-b247-424d-bae3-4d9c6cd93911/canvas/1#xywh=309,233,9925,7984",
+              "type": "Annotation"
+            }
+          ],
+          "type": "AnnotationPage"
+        }
+      ],
+      "label": {
+        "none": [
+          "Stitched"
+        ]
+      },
+      "type": "Canvas",
+      "width": 11194
+    }
+  ],
+  "label": {
+    "none": [
+      "Stitched: Carrick, Robert, active 1853-1895, The blue lights , [1853?] + Print made by Pellissier & Allen, active late 19th century, Rockets and Blue Lights, 1900"
+    ]
+  },
+  "summary": {
+    "none": [
+      "Aligned with 8 point pairs (scale 1.6650, RMS error 162.3 px)"
+    ]
+  },
+  "type": "Manifest"
+}
