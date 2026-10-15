@@ -1,0 +1,180 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Mirador demo site: a private S3 bucket served through CloudFront (Origin Access Control).
+  One stack per environment (test, prod). Deployed by deploy/deploy.sh.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [test, prod]
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Optional custom domain (e.g. mirador.example.edu). Leave empty to use the cloudfront.net domain.
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM certificate ARN in us-east-1 for DomainName. Required when DomainName is set.
+  PriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues: [PriceClass_100, PriceClass_200, PriceClass_All]
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref DomainName, '']]
+
+Resources:
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # old objects are kept for 30 days so a bad deploy can be rolled back
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub mirador-${Environment}-${AWS::StackName}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Same URLs as the dev server and netlify.toml: / -> /demo/index.html, /<page> -> /demo/<page>.html
+  RewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub mirador-${Environment}-rewrite
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Map short demo URLs onto /demo/*.html
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri === '/') {
+            request.uri = '/demo/index.html';
+          } else if (/^\/[^/]+$/.test(uri) && (uri.indexOf('.') === -1 || /\.html$/.test(uri))) {
+            request.uri = '/demo' + uri + (/\.html$/.test(uri) ? '' : '.html');
+          }
+          return request;
+        }
+
+  SecurityHeaders:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub mirador-${Environment}-headers
+        # manifests and images load from other origins, so no restrictive CSP here
+        SecurityHeadersConfig:
+          ContentTypeOptions:
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: false
+            Override: true
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub Mirador demo site (${Environment})
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: !Ref PriceClass
+        Aliases: !If [HasDomain, [!Ref DomainName], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasDomain
+          - AcmCertificateArn: !Ref CertificateArn
+            MinimumProtocolVersion: TLSv1.2_2021
+            SslSupportMethod: sni-only
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: site
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: site
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          Compress: true
+          # AWS managed CachingOptimized policy; per-object Cache-Control headers set by deploy.sh still apply
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref SecurityHeaders
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt RewriteFunction.FunctionMetadata.FunctionARN
+        CustomErrorResponses:
+          # S3 answers 403 for missing keys when the bucket is private
+          - ErrorCode: 403
+            ResponseCode: 404
+            ResponsePagePath: /demo/index.html
+            ErrorCachingMinTTL: 60
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${SiteBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt SiteBucket.Arn
+              - !Sub ${SiteBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+Outputs:
+  BucketName:
+    Value: !Ref SiteBucket
+  DistributionId:
+    Value: !Ref Distribution
+  SiteUrl:
+    Value: !If [HasDomain, !Sub 'https://${DomainName}', !Sub 'https://${Distribution.DomainName}']

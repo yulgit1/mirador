@@ -55,6 +55,20 @@ async function saveManifest(manifest, fileName, overwrite) {
   return { manifest: { ...manifest, id }, url: id };
 }
 
+/** Saves the manifest as a JSON file in the browser's downloads */
+function download(manifest, fileName) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+  return { manifest, url: manifest.id };
+}
+
+// the save endpoint only exists on the Vite dev server; deployed (static) builds download instead
+const CAN_SAVE = import.meta.env.DEV;
+
 /** The layers-open demo page showing the given manifest */
 const viewerUrl = (manifestUrl) => `${window.location.origin}/demo/layers-open.html?manifest=${manifestUrl}`;
 
@@ -111,13 +125,13 @@ export function StitchingPanel({
 
     setSaving(true);
     try {
-      const result = await saveManifest(pending, fileName, overwrite);
+      const result = CAN_SAVE ? await saveManifest(pending, fileName, overwrite) : download(pending, fileName);
       if (result.exists) {
         setExists(true);
         return;
       }
       setPending(null);
-      setSavedUrl(viewerUrl(result.url));
+      setSavedUrl(CAN_SAVE ? viewerUrl(result.url) : fileName);
       addWindow({
         manifest: result.manifest,
         manifestId: result.url,
@@ -198,12 +212,17 @@ export function StitchingPanel({
           </Alert>
         )}
 
-        {savedUrl && (
+        {savedUrl && CAN_SAVE && (
           <Alert severity="success" sx={{ mb: 2, wordBreak: 'break-all' }}>
             Saved. Open it with:{' '}
             <Link href={savedUrl} target="_blank" rel="noopener">
               {savedUrl}
             </Link>
+          </Alert>
+        )}
+        {savedUrl && !CAN_SAVE && (
+          <Alert severity="success" sx={{ mb: 2, wordBreak: 'break-all' }}>
+            Downloaded {savedUrl}. Host it at a public URL to open it in other viewers.
           </Alert>
         )}
 
@@ -232,7 +251,10 @@ export function StitchingPanel({
             }}
             onKeyDown={(e) => e.key === 'Enter' && !exists && save()}
             error={!!nameError}
-            helperText={nameError || `Saved to ${MANIFEST_DIR}/${manifestFileName(name) || '…'}`}
+            helperText={
+              nameError ||
+              (CAN_SAVE ? `Saved to ${MANIFEST_DIR}/` : 'Downloaded as ') + (manifestFileName(name) || '…')
+            }
           />
           {exists && (
             <Alert severity="warning" sx={{ mt: 1 }}>
@@ -248,7 +270,7 @@ export function StitchingPanel({
             </Button>
           ) : (
             <Button variant="contained" onClick={() => save()} disabled={saving}>
-              Save
+              {CAN_SAVE ? 'Save' : 'Download'}
             </Button>
           )}
         </DialogActions>

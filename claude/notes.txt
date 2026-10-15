@@ -26,3 +26,10 @@ Full warp, like Allmaps
   What the tool does:
   - src/components/OpenSeadragonViewer.jsx
   - src/lib/ThumbnailFactory.js (so layer thumbnails show the crop)
+
+  The test site is deployed and working at https://d1h8e3tckp4kjy.cloudfront.net.
+
+  - Stitching tool: https://d1h8e3tckp4kjy.cloudfront.net/demo/stitching.html
+  - Layers view: https://d1h8e3tckp4kjy.cloudfront.net/layers-open?manifest=<manifest URL>. The full form /demo/layers-open.html?manifest=… also works.
+
+  To redeploy test after changes: run AWS_PROFILE=default npm run deploy:test. Add -- --skip-tests to skip the test suite.
