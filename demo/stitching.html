@@ -13,20 +13,25 @@
       import Mirador from '../src';
       import { LEFT_WINDOW_ID, RIGHT_WINDOW_ID, stitchingPlugins } from './stitching/index.js';
 
-      // Override the manifests from the URL, e.g. ?left=https://...&right=https://...
+      // Starts on the welcome screen; open two windows with Start here / Add resource.
+      // ?left=https://...&right=https://... opens them straight away instead.
       const params = new URLSearchParams(window.location.search);
-      const left = params.get('left') || 'https://manifests.collections.yale.edu/ycba/obj/1096';
-      const right = params.get('right') || 'https://manifests.collections.yale.edu/ycba/obj/49305';
+      const left = params.get('left');
+      const right = params.get('right');
+      const examples = [
+        'https://manifests.collections.yale.edu/ycba/obj/1096',
+        'https://manifests.collections.yale.edu/ycba/obj/49305',
+        'https://manifests.collections.yale.edu/ycba/alma/22664181270008651',
+        'https://manifests.collections.yale.edu/ycba/obj/49291',
+      ];
 
       Mirador.viewer(
         {
           id: 'mirador',
           workspace: { type: 'mosaic' },
-          windows: [
-            { id: LEFT_WINDOW_ID, manifestId: left },
-            { id: RIGHT_WINDOW_ID, manifestId: right },
-          ],
-          catalog: [{ manifestId: left }, { manifestId: right }],
+          windows: left && right ? [{ id: LEFT_WINDOW_ID, manifestId: left }, { id: RIGHT_WINDOW_ID, manifestId: right }] : [],
+          catalog: [...new Set([left, right, ...examples].filter(Boolean))].map((manifestId) => ({ manifestId })),
+          translations: { en: { welcome: 'Mirador Layering Tool' } },
         },
         stitchingPlugins,
       );

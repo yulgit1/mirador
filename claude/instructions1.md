@@ -20,3 +20,7 @@ When I use my own manifests in the left and right pane The functionality of clic
 Please fix.  Example added resources:
 https://manifests.collections.yale.edu/ycba/alma/22664181270008651
 https://manifests.collections.yale.edu/ycba/obj/49291
+
+modification 3:
+In demo/stitching.html Start with No windows open and "Welcome to Mirador" screen.
+Change "Welcome to Mirador" to "Mirador Layering Tool"
