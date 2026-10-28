@@ -21,7 +21,7 @@ import DeleteIcon from '@mui/icons-material/DeleteSharp';
 import MiradorCanvas from '../../src/lib/MiradorCanvas';
 import { fitScaleTranslate } from './fit';
 import { buildStitchedManifest } from './buildManifest';
-import { MANIFEST_DIR, manifestFileName, SAVE_ENDPOINT } from './manifestFileName';
+import { MANIFEST_DIR, manifestFileName, SAVE_ENDPOINT, UPLOAD_ENDPOINT, UPLOAD_URL } from './manifestFileName';
 import { pairColor } from './StitchingMarkers';
 import { RESULT_WINDOW_PREFIX } from './selectors';
 
@@ -67,7 +67,26 @@ function download(manifest, fileName) {
   return { manifest, url: manifest.id };
 }
 
-// the save endpoint only exists on the Vite dev server; deployed (static) builds download instead
+/**
+ * Uploads the manifest to UPLOAD_URL<fileName> through the deployed site's upload function,
+ * which checks the password and sets the manifest's id to its public URL. Resolves to
+ * { manifest, url } or { exists: true }.
+ */
+async function upload(manifest, fileName, password, overwrite) {
+  const response = await fetch(UPLOAD_ENDPOINT, {
+    body: JSON.stringify({ manifest, name: fileName, overwrite, password }),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  });
+
+  if (response.status === 409) return { exists: true };
+  const body = await response.json().catch(() => ({}));
+  if (response.status === 401) throw Object.assign(new Error('Wrong password'), { field: 'password' });
+  if (!response.ok) throw new Error(body.error || `Uploading failed (HTTP ${response.status})`);
+  return body;
+}
+
+// the save endpoint only exists on the Vite dev server; deployed (static) builds download or upload instead
 const CAN_SAVE = import.meta.env.DEV;
 
 /** The layers-open demo page showing the given manifest */
@@ -95,9 +114,12 @@ export function StitchingPanel({
   const [pending, setPending] = useState(null);
   const [name, setName] = useState('stitched-manifest');
   const [nameError, setNameError] = useState(null);
-  const [exists, setExists] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(null);
+  // the action ('save', 'download' or 'upload') that found an existing file, to repeat on overwrite
+  const [exists, setExists] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [savedUrl, setSavedUrl] = useState(null);
+  const [saved, setSaved] = useState(null);
   const fit = useMemo(() => fitScaleTranslate(pairs), [pairs]);
   const completePairs = pairs.filter((p) => p.left && p.right).length;
 
@@ -118,28 +140,36 @@ export function StitchingPanel({
 
     setError(null);
     setNameError(null);
-    setExists(false);
+    setPasswordError(null);
+    setExists(null);
     setPending(manifest);
   };
 
   const closeDialog = () => setPending(null);
 
-  const save = async (overwrite = false) => {
+  const save = async (action, overwrite = false) => {
     const fileName = manifestFileName(name);
     if (!fileName) {
       setNameError('Use letters, digits, ".", "_" or "-"');
       return;
     }
+    if (action === 'upload' && !password) {
+      setPasswordError('Enter the upload password');
+      return;
+    }
 
     setSaving(true);
     try {
-      const result = CAN_SAVE ? await saveManifest(pending, fileName, overwrite) : download(pending, fileName);
+      let result;
+      if (action === 'save') result = await saveManifest(pending, fileName, overwrite);
+      else if (action === 'upload') result = await upload(pending, fileName, password, overwrite);
+      else result = download(pending, fileName);
       if (result.exists) {
-        setExists(true);
+        setExists(action);
         return;
       }
       setPending(null);
-      setSavedUrl(CAN_SAVE ? viewerUrl(result.url) : fileName);
+      setSaved({ action, fileName, url: action === 'download' ? undefined : viewerUrl(result.url) });
       addWindow({
         manifest: result.manifest,
         id: `${RESULT_WINDOW_PREFIX}${crypto.randomUUID()}`,
@@ -149,7 +179,8 @@ export function StitchingPanel({
         sideBarPanel: 'layers',
       });
     } catch (e) {
-      setNameError(e.message);
+      if (e.field === 'password') setPasswordError(e.message);
+      else setNameError(e.message);
     } finally {
       setSaving(false);
     }
@@ -171,7 +202,7 @@ export function StitchingPanel({
           Point pairs
         </Typography>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Click "START HERE" and then "ADD RESOURCE" to upload manifests.
+          Click “START HERE” and then “ADD RESOURCE” to upload manifests.
           Choose 2 manifests for the right and left side and the desired image in each manifest.  Click a point on the left image, then the matching point on the right. Drag a pin to adjust it. At least 2 pairs
           are needed; more pairs improve the fit, 8 spread through out the images are suggested.
         </Typography>
@@ -233,17 +264,17 @@ export function StitchingPanel({
           </Alert>
         )}
 
-        {savedUrl && CAN_SAVE && (
+        {saved?.url && (
           <Alert severity="success" sx={{ mb: 2, wordBreak: 'break-all' }}>
-            Saved. Open it with:{' '}
-            <Link href={savedUrl} target="_blank" rel="noopener">
-              {savedUrl}
+            {saved.action === 'upload' ? `Uploaded ${saved.fileName}` : 'Saved'}. Open it with:{' '}
+            <Link href={saved.url} target="_blank" rel="noopener">
+              {saved.url}
             </Link>
           </Alert>
         )}
-        {savedUrl && !CAN_SAVE && (
+        {saved && !saved.url && (
           <Alert severity="success" sx={{ mb: 2, wordBreak: 'break-all' }}>
-            Downloaded {savedUrl}. Host it at a public URL to open it in other viewers.
+            Downloaded {saved.fileName}. Host it at a public URL to open it in other viewers.
           </Alert>
         )}
 
@@ -268,15 +299,32 @@ export function StitchingPanel({
             onChange={(e) => {
               setName(e.target.value);
               setNameError(null);
-              setExists(false);
+              setExists(null);
             }}
-            onKeyDown={(e) => e.key === 'Enter' && !exists && save()}
+            onKeyDown={(e) => e.key === 'Enter' && !exists && save(CAN_SAVE ? 'save' : 'download')}
             error={!!nameError}
             helperText={
               nameError ||
-              (CAN_SAVE ? `Saved to ${MANIFEST_DIR}/` : 'Downloaded as ') + (manifestFileName(name) || '…')
+              (CAN_SAVE ? `Saved to ${MANIFEST_DIR}/` : 'Downloaded or uploaded as ') + (manifestFileName(name) || '…')
             }
           />
+          {!CAN_SAVE && (
+            <TextField
+              fullWidth
+              margin="dense"
+              type="password"
+              label="Upload password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setPasswordError(null);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && !exists && save('upload')}
+              error={!!passwordError}
+              helperText={passwordError || `Needed to upload to ${UPLOAD_URL}`}
+            />
+          )}
           {exists && (
             <Alert severity="warning" sx={{ mt: 1 }}>
               {manifestFileName(name)} already exists. Overwrite it?
@@ -285,14 +333,25 @@ export function StitchingPanel({
         </DialogContent>
         <DialogActions>
           <Button onClick={closeDialog}>Cancel</Button>
-          {exists ? (
-            <Button variant="contained" color="warning" onClick={() => save(true)} disabled={saving}>
+          {exists && (
+            <Button variant="contained" color="warning" onClick={() => save(exists, true)} disabled={saving}>
               Overwrite
             </Button>
-          ) : (
-            <Button variant="contained" onClick={() => save()} disabled={saving}>
-              {CAN_SAVE ? 'Save' : 'Download'}
+          )}
+          {!exists && CAN_SAVE && (
+            <Button variant="contained" onClick={() => save('save')} disabled={saving}>
+              Save
             </Button>
+          )}
+          {!exists && !CAN_SAVE && (
+            <>
+              <Button variant="outlined" onClick={() => save('download')} disabled={saving}>
+                Download
+              </Button>
+              <Button variant="contained" onClick={() => save('upload')} disabled={saving}>
+                Upload to S3
+              </Button>
+            </>
           )}
         </DialogActions>
       </Dialog>

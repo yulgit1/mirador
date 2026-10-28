@@ -1,0 +1,86 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "http://localhost:4445/demo/manifests/stubbshorse.json",
+  "items": [
+    {
+      "height": 6365,
+      "id": "urn:mirador:stitched:ac1189cd-a63b-413e-b854-ba4054464b78/canvas/1",
+      "items": [
+        {
+          "id": "urn:mirador:stitched:ac1189cd-a63b-413e-b854-ba4054464b78/page/1",
+          "items": [
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:a14fdabd-546f-4a57-805a-fdad3a0877be/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:a14fdabd-546f-4a57-805a-fdad3a0877be",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 5556,
+                "width": 6830,
+                "label": {
+                  "none": [
+                    "George Stubbs, 1724–1806, Pumpkin with a Stable-lad, 1774"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:ac1189cd-a63b-413e-b854-ba4054464b78/annotation/1",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:ac1189cd-a63b-413e-b854-ba4054464b78/canvas/1#xywh=332,424,6830,5556",
+              "type": "Annotation"
+            },
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:c4d36cde-59e3-4b78-ac80-2d2a7291b2b8/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:c4d36cde-59e3-4b78-ac80-2d2a7291b2b8",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 17900,
+                "width": 21000,
+                "label": {
+                  "none": [
+                    "George Stubbs, 1724–1806, Pumpkin with a Stable-lad, 1774"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:ac1189cd-a63b-413e-b854-ba4054464b78/annotation/2",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:ac1189cd-a63b-413e-b854-ba4054464b78/canvas/1#xywh=0,0,7468,6365",
+              "type": "Annotation"
+            }
+          ],
+          "type": "AnnotationPage"
+        }
+      ],
+      "label": {
+        "none": [
+          "Stitched"
+        ]
+      },
+      "type": "Canvas",
+      "width": 7468
+    }
+  ],
+  "label": {
+    "none": [
+      "Stitched: George Stubbs, 1724–1806, Pumpkin with a Stable-lad, 1774 + George Stubbs, 1724–1806, Pumpkin with a Stable-lad, 1774"
+    ]
+  },
+  "summary": {
+    "none": [
+      "Aligned with 4 point pairs (scale 0.3556, RMS error 42.3 px)"
+    ]
+  },
+  "type": "Manifest"
+}

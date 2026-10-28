@@ -22,62 +22,15 @@
       "Resource": "*"
     },
     {
-      "Sid": "SiteBuckets",
+      "Sid": "PassCloudFormationRole",
       "Effect": "Allow",
-      "Action": [
-        "s3:CreateBucket",
-        "s3:GetBucketPolicy",
-        "s3:PutBucketPolicy",
-        "s3:DeleteBucketPolicy",
-        "s3:PutBucketTagging",
-        "s3:GetBucketTagging",
-        "s3:PutBucketVersioning",
-        "s3:GetBucketVersioning",
-        "s3:PutEncryptionConfiguration",
-        "s3:GetEncryptionConfiguration",
-        "s3:PutBucketPublicAccessBlock",
-        "s3:GetBucketPublicAccessBlock",
-        "s3:PutBucketOwnershipControls",
-        "s3:GetBucketOwnershipControls",
-        "s3:PutLifecycleConfiguration",
-        "s3:GetLifecycleConfiguration",
-        "s3:ListBucket",
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject"
-      ],
-      "Resource": ["arn:aws:s3:::mirador-demo-*", "arn:aws:s3:::mirador-demo-*/*"]
-    },
-    {
-      "Sid": "CloudFront",
-      "Effect": "Allow",
-      "Action": [
-        "cloudfront:CreateDistribution",
-        "cloudfront:UpdateDistribution",
-        "cloudfront:GetDistribution",
-        "cloudfront:GetDistributionConfig",
-        "cloudfront:TagResource",
-        "cloudfront:ListTagsForResource",
-        "cloudfront:CreateInvalidation",
-        "cloudfront:GetInvalidation",
-        "cloudfront:CreateOriginAccessControl",
-        "cloudfront:GetOriginAccessControl",
-        "cloudfront:UpdateOriginAccessControl",
-        "cloudfront:CreateFunction",
-        "cloudfront:UpdateFunction",
-        "cloudfront:PublishFunction",
-        "cloudfront:DescribeFunction",
-        "cloudfront:GetFunction",
-        "cloudfront:CreateResponseHeadersPolicy",
-        "cloudfront:UpdateResponseHeadersPolicy",
-        "cloudfront:GetResponseHeadersPolicy",
-        "cloudfront:GetCachePolicy",
-        "cloudfront:DeleteDistribution",
-        "cloudfront:DeleteFunction",
-        "cloudfront:DeleteOriginAccessControl",
-        "cloudfront:DeleteResponseHeadersPolicy"
-      ],
-      "Resource": "*"
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::839977467559:role/cfn-mirador-demo-deployer",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "cloudformation.amazonaws.com"
+        }
+      }
     }
   ]
 }

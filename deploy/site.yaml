@@ -19,6 +19,13 @@ Parameters:
     Type: String
     Default: PriceClass_100
     AllowedValues: [PriceClass_100, PriceClass_200, PriceClass_All]
+  UploadBucket:
+    Type: String
+    Default: chit-iiif
+    Description: Existing bucket that the stitching page uploads manifests to (it must allow public reads of the prefix).
+  UploadPrefix:
+    Type: String
+    Default: manifests/uploads/
 
 Conditions:
   HasDomain: !Not [!Equals [!Ref DomainName, '']]
@@ -101,6 +108,148 @@ Resources:
             IncludeSubdomains: false
             Override: true
 
+  # Password for uploading stitched manifests; read it with
+  #   aws secretsmanager get-secret-value --secret-id <stack>/upload-password --query SecretString --output text
+  UploadPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}/upload-password
+      Description: Password the stitching page asks for before uploading a manifest to S3
+      GenerateSecretString:
+        PasswordLength: 24
+        ExcludePunctuation: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UploadFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: upload-manifests
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${UploadBucket}/${UploadPrefix}*
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref UploadPassword
+
+  # POST /api/upload-manifest {name, password, manifest, overwrite}: checks the password, then
+  # writes the manifest (its id set to its public URL) to s3://UploadBucket/UploadPrefix<name>.
+  # Responds 401 for a wrong password (not 403, which the distribution turns into a 404 page)
+  # and 409 if the file exists, unless overwrite is true.
+  UploadFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Uploads stitched manifests from demo/stitching.html to S3
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Timeout: 10
+      MemorySize: 256
+      Role: !GetAtt UploadFunctionRole.Arn
+      Environment:
+        Variables:
+          BUCKET: !Ref UploadBucket
+          PREFIX: !Ref UploadPrefix
+          PUBLIC_BASE: !Sub https://${UploadBucket}.s3.${AWS::Region}.amazonaws.com/${UploadPrefix}
+          SECRET_ARN: !Ref UploadPassword
+      Code:
+        ZipFile: |
+          const crypto = require('node:crypto');
+          const { PutObjectCommand, S3Client } = require('@aws-sdk/client-s3');
+          const { GetSecretValueCommand, SecretsManagerClient } = require('@aws-sdk/client-secrets-manager');
+
+          const s3 = new S3Client({});
+          const secrets = new SecretsManagerClient({});
+          const { BUCKET, PREFIX, PUBLIC_BASE, SECRET_ARN } = process.env;
+          let password;
+
+          const reply = (statusCode, body) => ({
+            body: JSON.stringify(body),
+            headers: { 'Cache-Control': 'no-store', 'Content-Type': 'application/json' },
+            statusCode,
+          });
+          const digest = (value) => crypto.createHash('sha256').update(String(value)).digest();
+
+          exports.handler = async (event) => {
+            if (event.requestContext.http.method !== 'POST') return reply(405, { error: 'Use POST' });
+
+            let request;
+            try {
+              request = JSON.parse(event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body);
+            } catch (e) {
+              return reply(400, { error: 'The request must be JSON' });
+            }
+
+            password ??= (await secrets.send(new GetSecretValueCommand({ SecretId: SECRET_ARN }))).SecretString;
+            if (!crypto.timingSafeEqual(digest(request.password), digest(password))) {
+              await new Promise((resolve) => { setTimeout(resolve, 1000); });
+              return reply(401, { error: 'Wrong password' });
+            }
+
+            const name = String(request.name || '');
+            if (!/^[A-Za-z0-9_-][A-Za-z0-9._-]*\.json$/.test(name) || name.length > 200) {
+              return reply(400, { error: 'Use a name made of letters, digits, ".", "_" or "-"' });
+            }
+            if (!request.manifest || typeof request.manifest !== 'object') return reply(400, { error: 'No manifest' });
+
+            const url = PUBLIC_BASE + name;
+            const manifest = { ...request.manifest, id: url };
+            try {
+              await s3.send(new PutObjectCommand({
+                Body: `${JSON.stringify(manifest, null, 2)}\n`,
+                Bucket: BUCKET,
+                CacheControl: 'no-cache',
+                ContentType: 'application/json',
+                Key: PREFIX + name,
+                ...(!request.overwrite && { IfNoneMatch: '*' }),
+              }));
+            } catch (e) {
+              if ([409, 412].includes(e.$metadata?.httpStatusCode)) return reply(409, { error: `${name} already exists` });
+              console.error(e);
+              return reply(500, { error: 'Uploading failed' });
+            }
+            return reply(201, { manifest, url });
+          };
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UploadFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref UploadFunction
+      # the password is checked by the function; CloudFront serves it at /api/upload-manifest
+      AuthType: NONE
+
+  UploadFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UploadFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  UploadFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UploadFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -123,6 +272,21 @@ Resources:
             OriginAccessControlId: !GetAtt OriginAccessControl.Id
             S3OriginConfig:
               OriginAccessIdentity: ''
+          - Id: upload
+            # FunctionUrl is https://<id>.lambda-url.<region>.on.aws/
+            DomainName: !Select [2, !Split ['/', !GetAtt UploadFunctionUrl.FunctionUrl]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        CacheBehaviors:
+          - PathPattern: /api/upload-manifest
+            TargetOriginId: upload
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            # AWS managed CachingDisabled and AllViewerExceptHostHeader policies
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            ResponseHeadersPolicyId: !Ref SecurityHeaders
         DefaultCacheBehavior:
           TargetOriginId: site
           ViewerProtocolPolicy: redirect-to-https
@@ -176,5 +340,7 @@ Outputs:
     Value: !Ref SiteBucket
   DistributionId:
     Value: !Ref Distribution
+  UploadPasswordSecret:
+    Value: !Ref UploadPassword
   SiteUrl:
     Value: !If [HasDomain, !Sub 'https://${DomainName}', !Sub 'https://${Distribution.DomainName}']

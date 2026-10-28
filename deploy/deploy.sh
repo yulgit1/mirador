@@ -11,6 +11,8 @@
 #   STACK_PREFIX       stack name prefix (default: mirador-demo), giving e.g. mirador-demo-test
 #   DOMAIN_NAME        optional custom domain for this environment
 #   CERTIFICATE_ARN    ACM certificate in us-east-1 for DOMAIN_NAME
+#   CFN_ROLE_ARN       role CloudFormation deploys the stack with (default: the account's
+#                      cfn-mirador-demo-deployer role; see deploy/cloudformation-role-policy.json)
 #
 # prod refuses to deploy uncommitted changes or anything other than the main branch,
 # always runs the full test suite, and asks for confirmation unless --yes is given.
@@ -67,6 +69,8 @@ fi
 
 step "Checking AWS credentials"
 aws sts get-caller-identity --query 'Arn' --output text
+ACCOUNT_ID="$(aws sts get-caller-identity --query 'Account' --output text)"
+CFN_ROLE_ARN="${CFN_ROLE_ARN:-arn:aws:iam::$ACCOUNT_ID:role/cfn-mirador-demo-deployer}"
 
 if [[ "$ENVIRONMENT" == "prod" && "$ASSUME_YES" != true ]]; then
   read -r -p "Deploy $GIT_SHA to PROD ($STACK_NAME in $AWS_REGION)? [y/N] " answer
@@ -93,6 +97,8 @@ step "Deploying CloudFormation stack $STACK_NAME"
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file deploy/site.yaml \
+  --role-arn "$CFN_ROLE_ARN" \
+  --capabilities CAPABILITY_IAM \
   --no-fail-on-empty-changeset \
   --parameter-overrides \
     "Environment=$ENVIRONMENT" \
@@ -107,6 +113,7 @@ output() {
 BUCKET="$(output BucketName)"
 DISTRIBUTION_ID="$(output DistributionId)"
 SITE_URL="$(output SiteUrl)"
+PASSWORD_SECRET="$(output UploadPasswordSecret)"
 
 step "Uploading to s3://$BUCKET"
 # hashed bundles never change, so browsers may cache them for a year
@@ -133,3 +140,4 @@ deployed="$(curl -s "$SITE_URL/version.txt")"
 step "Deployed $GIT_SHA to $ENVIRONMENT"
 echo "$SITE_URL/demo/stitching.html"
 echo "$SITE_URL/demo/layers-open.html?manifest=<manifest URL>"
+echo "Upload password: aws secretsmanager get-secret-value --secret-id $PASSWORD_SECRET --query SecretString --output text"
