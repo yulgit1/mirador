@@ -3,10 +3,6 @@ import PropTypes from 'prop-types';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Link from '@mui/material/Link';
@@ -15,14 +11,13 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/DeleteSharp';
 import MiradorCanvas from '../../src/lib/MiradorCanvas';
 import { fitScaleTranslate } from './fit';
 import { buildStitchedManifest } from './buildManifest';
-import { MANIFEST_DIR, manifestFileName, SAVE_ENDPOINT, UPLOAD_ENDPOINT, UPLOAD_URL } from './manifestFileName';
 import { pairColor } from './StitchingMarkers';
+import { SaveManifestDialog } from './SaveManifestDialog';
 import { RESULT_WINDOW_PREFIX } from './selectors';
 
 /** Image body JSON, label and pixel size of the image showing on one side */
@@ -34,60 +29,6 @@ function sideImage(canvas, label) {
   const height = image.getHeight() || canvas.getHeight();
   return { height, image: { ...image.__jsonld, height, width }, label: label || canvas.id, width };
 }
-
-/**
- * Saves the manifest to demo/manifests/<fileName> through the dev server, with its
- * id set to the URL it will be served from. Resolves to { url } or { exists: true }.
- */
-async function saveManifest(manifest, fileName, overwrite) {
-  const id = `${window.location.origin}/${MANIFEST_DIR}/${fileName}`;
-  const query = new URLSearchParams({ name: fileName, ...(overwrite && { overwrite: '1' }) });
-  const response = await fetch(`${SAVE_ENDPOINT}?${query}`, {
-    body: JSON.stringify({ ...manifest, id }),
-    headers: { 'Content-Type': 'application/json' },
-    method: 'POST',
-  });
-
-  if (response.status === 409) return { exists: true };
-  if (!response.ok) {
-    const { error } = await response.json().catch(() => ({}));
-    throw new Error(error || `Saving failed (HTTP ${response.status})`);
-  }
-  return { manifest: { ...manifest, id }, url: id };
-}
-
-/** Saves the manifest as a JSON file in the browser's downloads */
-function download(manifest, fileName) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
-  return { manifest, url: manifest.id };
-}
-
-/**
- * Uploads the manifest to UPLOAD_URL<fileName> through the deployed site's upload function,
- * which checks the password and sets the manifest's id to its public URL. Resolves to
- * { manifest, url } or { exists: true }.
- */
-async function upload(manifest, fileName, password, overwrite) {
-  const response = await fetch(UPLOAD_ENDPOINT, {
-    body: JSON.stringify({ manifest, name: fileName, overwrite, password }),
-    headers: { 'Content-Type': 'application/json' },
-    method: 'POST',
-  });
-
-  if (response.status === 409) return { exists: true };
-  const body = await response.json().catch(() => ({}));
-  if (response.status === 401) throw Object.assign(new Error('Wrong password'), { field: 'password' });
-  if (!response.ok) throw new Error(body.error || `Uploading failed (HTTP ${response.status})`);
-  return body;
-}
-
-// the save endpoint only exists on the Vite dev server; deployed (static) builds download or upload instead
-const CAN_SAVE = import.meta.env.DEV;
 
 /** The layers-open demo page showing the given manifest */
 const viewerUrl = (manifestUrl) => `${window.location.origin}/demo/layers-open.html?manifest=${manifestUrl}`;
@@ -112,13 +53,6 @@ export function StitchingPanel({
 }) {
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(null);
-  const [name, setName] = useState('stitched-manifest');
-  const [nameError, setNameError] = useState(null);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState(null);
-  // the action ('save', 'download' or 'upload') that found an existing file, to repeat on overwrite
-  const [exists, setExists] = useState(null);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(null);
   const fit = useMemo(() => fitScaleTranslate(pairs), [pairs]);
   const completePairs = pairs.filter((p) => p.left && p.right).length;
@@ -139,51 +73,23 @@ export function StitchingPanel({
     }
 
     setError(null);
-    setNameError(null);
-    setPasswordError(null);
-    setExists(null);
     setPending(manifest);
   };
 
   const closeDialog = () => setPending(null);
 
-  const save = async (action, overwrite = false) => {
-    const fileName = manifestFileName(name);
-    if (!fileName) {
-      setNameError('Use letters, digits, ".", "_" or "-"');
-      return;
-    }
-    if (action === 'upload' && !password) {
-      setPasswordError('Enter the upload password');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      let result;
-      if (action === 'save') result = await saveManifest(pending, fileName, overwrite);
-      else if (action === 'upload') result = await upload(pending, fileName, password, overwrite);
-      else result = download(pending, fileName);
-      if (result.exists) {
-        setExists(action);
-        return;
-      }
-      setPending(null);
-      setSaved({ action, fileName, url: action === 'download' ? undefined : viewerUrl(result.url) });
-      addWindow({
-        manifest: result.manifest,
-        id: `${RESULT_WINDOW_PREFIX}${crypto.randomUUID()}`,
-        manifestId: result.url,
-        maximized: true,
-        sideBarOpen: true,
-        sideBarPanel: 'layers',
-      });
-    } catch (e) {
-      if (e.field === 'password') setPasswordError(e.message);
-      else setNameError(e.message);
-    } finally {
-      setSaving(false);
-    }
+  /** Shows the saved manifest in a new maximized window, with its layers listed */
+  const onSaved = ({ action, fileName, manifest, url }) => {
+    setPending(null);
+    setSaved({ action, fileName, url: action === 'download' ? undefined : viewerUrl(url) });
+    addWindow({
+      manifest,
+      id: `${RESULT_WINDOW_PREFIX}${crypto.randomUUID()}`,
+      manifestId: url,
+      maximized: true,
+      sideBarOpen: true,
+      sideBarPanel: 'layers',
+    });
   };
 
   return (
@@ -288,73 +194,7 @@ export function StitchingPanel({
         </Box>
       </Paper>
 
-      <Dialog open={!!pending} onClose={closeDialog} fullWidth maxWidth="xs">
-        <DialogTitle>Save stitched manifest</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            margin="dense"
-            label="File name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setNameError(null);
-              setExists(null);
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && !exists && save(CAN_SAVE ? 'save' : 'download')}
-            error={!!nameError}
-            helperText={
-              nameError ||
-              (CAN_SAVE ? `Saved to ${MANIFEST_DIR}/` : 'Downloaded or uploaded as ') + (manifestFileName(name) || '…')
-            }
-          />
-          {!CAN_SAVE && (
-            <TextField
-              fullWidth
-              margin="dense"
-              type="password"
-              label="Upload password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setPasswordError(null);
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && !exists && save('upload')}
-              error={!!passwordError}
-              helperText={passwordError || `Needed to upload to ${UPLOAD_URL}`}
-            />
-          )}
-          {exists && (
-            <Alert severity="warning" sx={{ mt: 1 }}>
-              {manifestFileName(name)} already exists. Overwrite it?
-            </Alert>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDialog}>Cancel</Button>
-          {exists && (
-            <Button variant="contained" color="warning" onClick={() => save(exists, true)} disabled={saving}>
-              Overwrite
-            </Button>
-          )}
-          {!exists && CAN_SAVE && (
-            <Button variant="contained" onClick={() => save('save')} disabled={saving}>
-              Save
-            </Button>
-          )}
-          {!exists && !CAN_SAVE && (
-            <>
-              <Button variant="outlined" onClick={() => save('download')} disabled={saving}>
-                Download
-              </Button>
-              <Button variant="contained" onClick={() => save('upload')} disabled={saving}>
-                Upload to S3
-              </Button>
-            </>
-          )}
-        </DialogActions>
-      </Dialog>
+      <SaveManifestDialog manifest={pending} onClose={closeDialog} onSaved={onSaved} />
     </Box>
   );
 }
