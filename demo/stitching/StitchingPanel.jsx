@@ -14,13 +14,14 @@ import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/DeleteSharp';
 import MiradorCanvas from '../../src/lib/MiradorCanvas';
-import { fitScaleTranslate } from './fit';
+import { fitAll } from './fit';
 import { buildStitchedManifest } from './buildManifest';
-import { pairColor } from './StitchingMarkers';
+import { isMatched, rowColor } from './StitchingMarkers';
 import { SaveManifestDialog } from './SaveManifestDialog';
+import { imageLetter, MAX_IMAGES } from './reducer';
 import { RESULT_WINDOW_PREFIX } from './selectors';
 
-/** Image body JSON, label and pixel size of the image showing on one side */
+/** Image body JSON, label and pixel size of the image showing in one window */
 function sideImage(canvas, label) {
   const image = canvas && new MiradorCanvas(canvas).imageResources[0];
   if (!image) return undefined;
@@ -36,39 +37,42 @@ const viewerUrl = (manifestUrl) => `${window.location.origin}/demo/layers-open.h
 /** Formats an image point */
 const formatPoint = (point) => (point ? `${Math.round(point.x)}, ${Math.round(point.y)}` : '—');
 
-/** Docks the point-pair panel next to the Mirador workspace */
+/** Docks the matched-points panel next to the Mirador workspace */
 export function StitchingPanel({
+  activeRowId = null,
   addWindow,
-  clearPairs,
-  deletePair,
-  leftCanvas = undefined,
-  leftLabel = undefined,
-  pairs = [],
-  rightCanvas = undefined,
-  rightLabel = undefined,
-  setSides,
-  sides,
+  clearRows,
+  deleteRow,
+  ignoredWindowCount = 0,
+  images = [],
+  rows = [],
+  setActiveRow,
+  setImages,
+  stitchingImages,
   TargetComponent,
   targetProps = {},
 }) {
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(null);
   const [saved, setSaved] = useState(null);
-  const fit = useMemo(() => fitScaleTranslate(pairs), [pairs]);
-  const completePairs = pairs.filter((p) => p.left && p.right).length;
+  const count = images.length;
+  const result = useMemo(() => fitAll(rows, count), [rows, count]);
+  const letters = images.map((_, i) => imageLetter(i));
 
-  // tell the reducer which windows are paired, so it can drop points when they change
+  // tell the reducer which windows are stitched, so it can drop points when they change
   useEffect(() => {
-    setSides(sides);
-  }, [setSides, sides]);
+    setImages(stitchingImages);
+  }, [setImages, stitchingImages]);
 
   const complete = () => {
-    const left = sideImage(leftCanvas, leftLabel);
-    const right = sideImage(rightCanvas, rightLabel);
-    const manifest = left && right && fit && buildStitchedManifest({ fit, left, pairCount: completePairs, right });
+    const sized = images.map(({ canvas, label }) => sideImage(canvas, label));
+    const manifest =
+      result.complete &&
+      sized.every(Boolean) &&
+      buildStitchedManifest({ fits: result.fits, images: sized, rms: result.rms, shared: result.shared });
 
     if (!manifest) {
-      setError('The aligned images do not overlap. Check the point pairs.');
+      setError('An aligned image does not overlap any of the others. Check the points.');
       return;
     }
 
@@ -92,6 +96,13 @@ export function StitchingPanel({
     });
   };
 
+  /** Fit status of one non-reference image */
+  const fitStatus = (i) => {
+    const fit = result.fits[i];
+    const shared = `${result.shared[i]} shared with A`;
+    return fit ? `scale ${fit.s.toFixed(4)}, offset (${Math.round(fit.tx)}, ${Math.round(fit.ty)}), ${shared}` : `${shared}, 2 needed`;
+  };
+
   return (
     <Box sx={{ display: 'flex', inset: 0, position: 'absolute' }}>
       <Box sx={{ flexGrow: 1, position: 'relative' }}>
@@ -99,69 +110,100 @@ export function StitchingPanel({
       </Box>
       <Paper
         component="aside"
-        aria-label="Point pairs"
+        aria-label="Matched points"
         square
         elevation={0}
-        sx={{ borderColor: 'divider', borderLeft: 1, flexShrink: 0, overflowY: 'auto', p: 2, width: 380 }}
+        sx={{
+          borderColor: 'divider',
+          borderLeft: 1,
+          flexShrink: 0,
+          overflowY: 'auto',
+          p: 2,
+          width: count > 2 ? 520 : 380,
+        }}
       >
         <Typography variant="h6" component="h2">
-          Point pairs
+          Matched points
         </Typography>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Click “START HERE” and then “ADD RESOURCE” to upload manifests.
-          Choose 2 manifests for the right and left side and the desired image in each manifest.  Click a point on the left image, then the matching point on the right. Drag a pin to adjust it. At least 2 pairs
-          are needed; more pairs improve the fit, 8 spread through out the images are suggested.
+          Click “START HERE” and then “ADD RESOURCE” to upload manifests. Open 2 to {MAX_IMAGES} manifests and choose
+          the desired image in each; the first window on screen is image A, which the others are aligned to. Click a
+          landmark on each image that shows it; the points go in the highlighted row. Clicking an image that already
+          has a point in that row starts a new row, and clicking a row lets you add its missing points. Drag a pin to
+          adjust it. Each image needs at least 2 points shared with A; more improve the fit, 8 spread through out the
+          images are suggested.
         </Typography>
         <Typography variant="body2" component="div" sx={{ mb: 2 }}>
-          {sides.left && sides.right ? (
-            <>
-              <strong>Left:</strong> {leftLabel || sides.left.windowId}
-              <br />
-              <strong>Right:</strong> {rightLabel || sides.right.windowId}
-            </>
-          ) : (
-            'Click complete when done, name and download the manifest, and send to CIA/IT'
+          {count > 1
+            ? images.map(({ label, windowId }, i) => (
+                <div key={windowId}>
+                  <strong>{letters[i]}:</strong> {label || windowId}
+                </div>
+              ))
+            : 'Click complete when done, name and download the manifest, and send to CIA/IT'}
+          {ignoredWindowCount > 0 && (
+            <div>
+              Only the first {MAX_IMAGES} windows are stitched; {ignoredWindowCount} more ignored.
+            </div>
           )}
         </Typography>
 
-        <Table size="small" aria-label="Point pairs" sx={{ '& .MuiTableCell-root': { px: 1, whiteSpace: 'nowrap' } }}>
+        <Table size="small" aria-label="Matched points" sx={{ '& .MuiTableCell-root': { px: 1, whiteSpace: 'nowrap' } }}>
           <TableHead>
             <TableRow>
               <TableCell>#</TableCell>
-              <TableCell>Left (x, y)</TableCell>
-              <TableCell>Right (x, y)</TableCell>
+              {letters.map((letter) => (
+                <TableCell key={letter}>{letter} (x, y)</TableCell>
+              ))}
               <TableCell align="right">Error</TableCell>
               <TableCell />
             </TableRow>
           </TableHead>
           <TableBody>
-            {pairs.map((pair, index) => (
-              <TableRow key={pair.id} sx={{ opacity: pair.left && pair.right ? 1 : 0.6 }}>
-                <TableCell sx={{ borderLeft: `4px solid ${pairColor(index)}` }}>{index + 1}</TableCell>
-                <TableCell>{formatPoint(pair.left)}</TableCell>
-                <TableCell>{formatPoint(pair.right)}</TableCell>
+            {rows.map((row, index) => (
+              <TableRow
+                key={row.id}
+                hover
+                selected={row.id === activeRowId}
+                onClick={() => setActiveRow(row.id)}
+                sx={{ cursor: 'pointer', opacity: isMatched(row) ? 1 : 0.6 }}
+              >
+                <TableCell sx={{ borderLeft: `4px solid ${rowColor(index)}` }}>{index + 1}</TableCell>
+                {letters.map((letter, i) => (
+                  <TableCell key={letter}>{formatPoint(row.points[i])}</TableCell>
+                ))}
                 <TableCell align="right">
-                  {fit?.residuals[index] === undefined ? '' : `${fit.residuals[index].toFixed(1)} px`}
+                  {result.rowErrors[index] === undefined ? '' : `${result.rowErrors[index].toFixed(1)} px`}
                 </TableCell>
                 <TableCell padding="none">
-                  <IconButton size="small" aria-label={`Delete pair ${index + 1}`} onClick={() => deletePair(pair.id)}>
+                  <IconButton
+                    size="small"
+                    aria-label={`Delete row ${index + 1}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      deleteRow(row.id);
+                    }}
+                  >
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </TableCell>
               </TableRow>
             ))}
-            {pairs.length === 0 && (
+            {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5}>No points yet.</TableCell>
+                <TableCell colSpan={count + 3}>No points yet.</TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
 
-        <Typography variant="body2" sx={{ my: 2 }}>
-          {fit
-            ? `Scale ${fit.s.toFixed(4)}, offset (${Math.round(fit.tx)}, ${Math.round(fit.ty)}), RMS error ${fit.rms.toFixed(1)} px`
-            : `${completePairs} of 2 required pairs`}
+        <Typography variant="body2" component="div" sx={{ my: 2 }}>
+          {letters.slice(1).map((letter, i) => (
+            <div key={letter}>
+              <strong>{letter}:</strong> {fitStatus(i + 1)}
+            </div>
+          ))}
+          {result.rms !== undefined && <div>RMS error {result.rms.toFixed(1)} px</div>}
         </Typography>
 
         {error && (
@@ -185,10 +227,10 @@ export function StitchingPanel({
         )}
 
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" onClick={clearPairs} disabled={pairs.length === 0}>
+          <Button variant="outlined" onClick={clearRows} disabled={rows.length === 0}>
             Clear
           </Button>
-          <Button variant="contained" onClick={complete} disabled={!fit}>
+          <Button variant="contained" onClick={complete} disabled={!result.complete}>
             Complete
           </Button>
         </Box>
@@ -200,16 +242,18 @@ export function StitchingPanel({
 }
 
 StitchingPanel.propTypes = {
+  activeRowId: PropTypes.number,
   addWindow: PropTypes.func.isRequired,
-  clearPairs: PropTypes.func.isRequired,
-  deletePair: PropTypes.func.isRequired,
-  leftCanvas: PropTypes.object,
-  leftLabel: PropTypes.string,
-  pairs: PropTypes.arrayOf(PropTypes.object),
-  rightCanvas: PropTypes.object,
-  rightLabel: PropTypes.string,
-  setSides: PropTypes.func.isRequired,
-  sides: PropTypes.shape({ left: PropTypes.object, right: PropTypes.object }).isRequired,
+  clearRows: PropTypes.func.isRequired,
+  deleteRow: PropTypes.func.isRequired,
+  ignoredWindowCount: PropTypes.number,
+  images: PropTypes.arrayOf(
+    PropTypes.shape({ canvas: PropTypes.object, label: PropTypes.string, windowId: PropTypes.string.isRequired }),
+  ),
+  rows: PropTypes.arrayOf(PropTypes.object),
+  setActiveRow: PropTypes.func.isRequired,
+  setImages: PropTypes.func.isRequired,
+  stitchingImages: PropTypes.arrayOf(PropTypes.object).isRequired,
   TargetComponent: PropTypes.elementType.isRequired,
   targetProps: PropTypes.object,
 };

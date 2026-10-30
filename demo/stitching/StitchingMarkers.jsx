@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import OpenSeadragon from 'openseadragon';
+import { imageLetter, MAX_IMAGES } from './reducer';
 
 const PALETTE = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45'];
 
-/** The colour used for a pair's pins and table row */
-export const pairColor = (index) => PALETTE[index % PALETTE.length];
+/** The colour used for a row's pins and table row */
+export const rowColor = (index) => PALETTE[index % PALETTE.length];
 
 /** Round to one decimal place of an image pixel */
 const round = ({ x, y }) => ({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 });
@@ -26,18 +27,22 @@ function imageTransform(canvasWorld) {
   };
 }
 
+/** Whether a row has a point on at least two images */
+export const isMatched = (row) => row.points.filter(Boolean).length > 1;
+
 /** A numbered pin element for an OSD overlay */
-function createPin(pair, index) {
+function createPin(row, index, active) {
+  const matched = isMatched(row);
   const element = document.createElement('div');
-  element.dataset.stitchPin = pair.id;
+  element.dataset.stitchPin = row.id;
   element.textContent = index + 1;
-  element.title = `Point ${index + 1}${pair.left && pair.right ? '' : ' (unmatched)'}`;
+  element.title = `Point ${index + 1}${matched ? '' : ' (unmatched)'}`;
   // OSD sets display: block on overlays, so centre the number with line-height
   Object.assign(element.style, {
-    background: pairColor(index),
-    border: pair.left && pair.right ? '2px solid #fff' : '2px dashed #fff',
+    background: rowColor(index),
+    border: matched ? '2px solid #fff' : '2px dashed #fff',
     borderRadius: '50%',
-    boxShadow: '0 0 0 1px rgba(0,0,0,0.6)',
+    boxShadow: active ? '0 0 0 2px #000, 0 0 0 4px #ff0' : '0 0 0 1px rgba(0,0,0,0.6)',
     boxSizing: 'border-box',
     color: '#fff',
     cursor: 'move',
@@ -49,18 +54,45 @@ function createPin(pair, index) {
   return element;
 }
 
+/** A badge with the image's letter for the corner of its window */
+function createBadge(imageIndex) {
+  const element = document.createElement('div');
+  element.textContent = `Image ${imageLetter(imageIndex)}${imageIndex === 0 ? ' (reference)' : ''}`;
+  Object.assign(element.style, {
+    background: 'rgba(0,0,0,0.7)',
+    borderRadius: '4px',
+    color: '#fff',
+    font: 'bold 13px/20px sans-serif',
+    left: '8px',
+    padding: '2px 8px',
+    pointerEvents: 'none',
+    position: 'absolute',
+    top: '8px',
+    zIndex: 1,
+  });
+  return element;
+}
+
 /**
  * Adds point pinning to a window's OpenSeadragon viewer: click to add a point,
  * drag a pin to move it.
  */
-export function StitchingMarkers({ addPoint, canvasWorld = null, movePoint, pairs = [], side = undefined, viewer = null }) {
+export function StitchingMarkers({
+  activeRowId = null,
+  addPoint,
+  canvasWorld = null,
+  imageIndex = undefined,
+  movePoint,
+  rows = [],
+  viewer = null,
+}) {
   const transform = useMemo(() => imageTransform(canvasWorld), [canvasWorld]);
   const draggingPin = useRef(false);
   const latest = useRef({});
   latest.current = { addPoint, movePoint, transform };
 
   useEffect(() => {
-    if (!viewer || !side) return undefined;
+    if (!viewer || imageIndex === undefined) return undefined;
 
     const onClick = (event) => {
       if (!event.quick || event.originalEvent?.target?.closest?.('[data-stitch-pin]')) return;
@@ -70,7 +102,7 @@ export function StitchingMarkers({ addPoint, canvasWorld = null, movePoint, pair
       // place a point instead of zooming in
       // eslint-disable-next-line no-param-reassign
       event.preventDefaultAction = true;
-      add(side, t.toImage(viewer.viewport.pointFromPixel(event.position)));
+      add(imageIndex, t.toImage(viewer.viewport.pointFromPixel(event.position)));
     };
     const onDrag = (event) => {
       // eslint-disable-next-line no-param-reassign
@@ -83,22 +115,30 @@ export function StitchingMarkers({ addPoint, canvasWorld = null, movePoint, pair
       viewer.removeHandler('canvas-click', onClick);
       viewer.removeHandler('canvas-drag', onDrag);
     };
-  }, [viewer, side]);
+  }, [viewer, imageIndex]);
 
   useEffect(() => {
-    if (!viewer || !side || !transform) return undefined;
+    if (!viewer?.container || imageIndex === undefined) return undefined;
 
-    const pins = pairs
-      .map((pair, index) => {
-        if (!pair[side]) return undefined;
+    const badge = createBadge(imageIndex);
+    viewer.container.appendChild(badge);
+    return () => badge.remove();
+  }, [viewer, imageIndex]);
 
-        const element = createPin(pair, index);
-        viewer.addOverlay({ element, location: transform.toWorld(pair[side]), placement: OpenSeadragon.Placement.CENTER });
+  useEffect(() => {
+    if (!viewer || imageIndex === undefined || !transform) return undefined;
+
+    const pins = rows
+      .map((row, index) => {
+        if (!row.points[imageIndex]) return undefined;
+
+        const element = createPin(row, index, row.id === activeRowId);
+        viewer.addOverlay({ element, location: transform.toWorld(row.points[imageIndex]), placement: OpenSeadragon.Placement.CENTER });
 
         const tracker = new OpenSeadragon.MouseTracker({
           dragEndHandler: () => {
             const overlay = viewer.getOverlayById(element);
-            if (overlay) latest.current.movePoint(pair.id, side, transform.toImage(overlay.location));
+            if (overlay) latest.current.movePoint(row.id, imageIndex, transform.toImage(overlay.location));
           },
           dragHandler: (event) => {
             const overlay = viewer.getOverlayById(element);
@@ -125,16 +165,17 @@ export function StitchingMarkers({ addPoint, canvasWorld = null, movePoint, pair
         viewer.removeOverlay(element);
       });
     };
-  }, [viewer, side, transform, pairs]);
+  }, [viewer, imageIndex, transform, rows, activeRowId]);
 
   return null;
 }
 
 StitchingMarkers.propTypes = {
+  activeRowId: PropTypes.number,
   addPoint: PropTypes.func.isRequired,
   canvasWorld: PropTypes.object,
+  imageIndex: PropTypes.oneOf([...Array(MAX_IMAGES).keys()]),
   movePoint: PropTypes.func.isRequired,
-  pairs: PropTypes.arrayOf(PropTypes.object),
-  side: PropTypes.oneOf(['left', 'right']),
+  rows: PropTypes.arrayOf(PropTypes.object),
   viewer: PropTypes.object,
 };

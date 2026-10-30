@@ -47,39 +47,86 @@ export function fitScaleTranslate(pairs) {
   };
 }
 
+/** The fit placing the reference image as it is */
+const IDENTITY = { rms: 0, s: 1, tx: 0, ty: 0 };
+
+/** Root mean square of a list of numbers, or undefined if it is empty */
+const rootMeanSquare = (values) =>
+  values.length ? Math.sqrt(values.reduce((sum, v) => sum + v * v, 0) / values.length) : undefined;
+
 /**
- * Places both images on one canvas big enough to hold them, using left-image pixels
- * as canvas units, so that the paired points coincide.
+ * Fits every image to the reference image (index 0) using the rows that have a
+ * point on both.
  *
- * @param {Object} fit - result of fitScaleTranslate
- * @param {Object} leftSize - { width, height } of the left image in pixels
- * @param {Object} rightSize - { width, height } of the right image in pixels
- * @returns {Object|undefined} { leftTarget, rightTarget, width, height } with integer [x, y, w, h]
- *   canvas targets, or undefined if the images do not overlap
+ * @param {Array} rows - [{ points: [p0, p1, ...] }], each point { x, y } or null
+ * @param {number} count - number of images
+ * @returns {Object} { fits, shared, rowErrors, rms, complete }: fits[i] is a
+ *   fitScaleTranslate result (identity for image 0) or undefined if image i cannot be fitted yet;
+ *   shared[i] is how many rows image i shares with image 0; rowErrors[r] is the RMS distance of
+ *   row r's points from where the reference image puts them; complete is true when every image is fitted
  */
-export function unionLayout({ s, tx, ty }, leftSize, rightSize) {
-  const rightWidth = s * rightSize.width;
-  const rightHeight = s * rightSize.height;
+export function fitAll(rows, count) {
+  const fits = [IDENTITY];
+  const shared = [rows.filter((r) => r.points[0]).length];
+  for (let i = 1; i < count; i += 1) {
+    const pairs = rows.map((r) => ({ left: r.points[0], right: r.points[i] }));
+    shared.push(pairs.filter((p) => p.left && p.right).length);
+    fits.push(fitScaleTranslate(pairs));
+  }
 
-  const overlapWidth = Math.min(leftSize.width, tx + rightWidth) - Math.max(0, tx);
-  const overlapHeight = Math.min(leftSize.height, ty + rightHeight) - Math.max(0, ty);
-  if (overlapWidth < 1 || overlapHeight < 1) return undefined;
-
-  // shift everything so the canvas starts at (0, 0)
-  const originX = Math.min(0, tx);
-  const originY = Math.min(0, ty);
-  const leftTarget = [Math.round(0 - originX), Math.round(0 - originY), leftSize.width, leftSize.height];
-  const rightTarget = [
-    Math.round(tx - originX),
-    Math.round(ty - originY),
-    Math.round(rightWidth),
-    Math.round(rightHeight),
-  ];
+  const rowErrors = rows.map((_, r) =>
+    rootMeanSquare(fits.slice(1).map((fit) => fit?.residuals[r]).filter((e) => e !== undefined)),
+  );
+  const allErrors = fits.slice(1).flatMap((fit) => (fit ? fit.residuals.filter((e) => e !== undefined) : []));
 
   return {
-    height: Math.max(leftTarget[1] + leftTarget[3], rightTarget[1] + rightTarget[3]),
-    leftTarget,
-    rightTarget,
-    width: Math.max(leftTarget[0] + leftTarget[2], rightTarget[0] + rightTarget[2]),
+    complete: count > 1 && fits.every(Boolean),
+    fits,
+    rms: rootMeanSquare(allErrors),
+    rowErrors,
+    shared,
+  };
+}
+
+/** Width and height two [x, y, w, h] rectangles have in common */
+const overlap = (a, b) => [
+  Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]),
+  Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]),
+];
+
+/**
+ * Places all images on one canvas big enough to hold them, using reference-image
+ * pixels as canvas units, so that the matched points coincide.
+ *
+ * @param {Array} fits - one { s, tx, ty } per image (identity for the reference image)
+ * @param {Array} sizes - { width, height } of each image in pixels
+ * @returns {Object|undefined} { targets, width, height } with an integer [x, y, w, h]
+ *   canvas target per image, or undefined if an image overlaps none of the others
+ */
+export function unionLayout(fits, sizes) {
+  const rects = fits.map(({ s, tx, ty }, i) => [tx, ty, s * sizes[i].width, s * sizes[i].height]);
+  const isolated = rects.some((rect, i) =>
+    rects.every((other, j) => {
+      if (i === j) return true;
+      const [w, h] = overlap(rect, other);
+      return w < 1 || h < 1;
+    }),
+  );
+  if (isolated) return undefined;
+
+  // shift everything so the canvas starts at (0, 0)
+  const originX = Math.min(...rects.map((r) => r[0]));
+  const originY = Math.min(...rects.map((r) => r[1]));
+  const targets = rects.map(([x, y, w, h]) => [
+    Math.round(x - originX),
+    Math.round(y - originY),
+    Math.round(w),
+    Math.round(h),
+  ]);
+
+  return {
+    height: Math.max(...targets.map((t) => t[1] + t[3])),
+    targets,
+    width: Math.max(...targets.map((t) => t[0] + t[2])),
   };
 }

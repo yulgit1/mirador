@@ -24,3 +24,6 @@ https://manifests.collections.yale.edu/ycba/obj/49291
 modification 3:
 In demo/stitching.html Start with No windows open and "Welcome to Mirador" screen.
 Change "Welcome to Mirador" to "Mirador Layering Tool"
+
+modification 4:
+Currently the point pairs are for 2 (left and right).  Allow the user to choose up to 4 different images to stitch together.  Before implementation propose a plan of how to accomplish this.

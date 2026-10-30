@@ -1,0 +1,109 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "http://localhost:4444/demo/manifests/3stitched-manifests.json",
+  "items": [
+    {
+      "height": 5254,
+      "id": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/canvas/1",
+      "items": [
+        {
+          "id": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/page/1",
+          "items": [
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:6e961789-58ac-49de-a51e-5c7f268c7f5f/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:6e961789-58ac-49de-a51e-5c7f268c7f5f",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 5153,
+                "width": 6984,
+                "label": {
+                  "none": [
+                    "John Constable, 1776–1837, Hadleigh Castle, The Mouth of the Thames--Morning after a Stormy Night, 1829"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/annotation/1",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/canvas/1#xywh=333,0,6984,5153",
+              "type": "Annotation"
+            },
+            {
+              "body": {
+                "@id": "https://framemark.vam.ac.uk/collections/2013GC0441/full/full/0/default.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "height": 4080,
+                "width": 5440,
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://framemark.vam.ac.uk/collections/2013GC0441",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                },
+                "label": {
+                  "none": [
+                    "Hadleigh Castle, near Southend"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/annotation/2",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/canvas/1#xywh=0,889,5820,4365",
+              "type": "Annotation"
+            },
+            {
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/ycba:a866e10e-5a6f-4b87-b4ec-6f0488940796/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/ycba:a866e10e-5a6f-4b87-b4ec-6f0488940796",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 4486,
+                "width": 5218,
+                "label": {
+                  "none": [
+                    "John Constable, 1776–1837, Hadleigh Castle, 1828 to 1829"
+                  ]
+                }
+              },
+              "id": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/annotation/3",
+              "motivation": "painting",
+              "target": "urn:mirador:stitched:0bf6853e-5ab0-4e82-8f20-dcf4b11ab9f5/canvas/1#xywh=309,451,5233,4499",
+              "type": "Annotation"
+            }
+          ],
+          "type": "AnnotationPage"
+        }
+      ],
+      "label": {
+        "none": [
+          "Stitched"
+        ]
+      },
+      "type": "Canvas",
+      "width": 7317
+    }
+  ],
+  "label": {
+    "none": [
+      "Stitched: John Constable, 1776–1837, Hadleigh Castle, The Mouth of the Thames--Morning after a Stormy Night, 1829 + Hadleigh Castle, near Southend + John Constable, 1776–1837, Hadleigh Castle, 1828 to 1829"
+    ]
+  },
+  "summary": {
+    "none": [
+      "Images B-C aligned to image A (B: scale 1.0698, 6 points; C: scale 1.0028, 6 points; RMS error 183.4 px)"
+    ]
+  },
+  "type": "Manifest"
+}

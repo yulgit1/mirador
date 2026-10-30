@@ -1,74 +1,97 @@
 export const ActionTypes = {
   ADD_POINT: 'stitching/ADD_POINT',
   CLEAR: 'stitching/CLEAR',
-  DELETE_PAIR: 'stitching/DELETE_PAIR',
+  DELETE_ROW: 'stitching/DELETE_ROW',
   MOVE_POINT: 'stitching/MOVE_POINT',
-  SET_SIDES: 'stitching/SET_SIDES',
+  SET_ACTIVE_ROW: 'stitching/SET_ACTIVE_ROW',
+  SET_IMAGES: 'stitching/SET_IMAGES',
 };
 
-// ids of the windows stitching.html opens; any two windows on screen can be paired
-export const LEFT_WINDOW_ID = 'stitch-left';
-export const RIGHT_WINDOW_ID = 'stitch-right';
+/** Most images that can be stitched together */
+export const MAX_IMAGES = 4;
 
-let nextPairId = 1;
+/** Letter shown for an image: A is the reference image the others are aligned to */
+export const imageLetter = (index) => String.fromCharCode(65 + index);
 
-/** Add a point; it completes the first pair missing this side, or starts a new pair */
-export const addPoint = (side, point) => ({ point, side, type: ActionTypes.ADD_POINT });
+// ids of the windows stitching.html opens; any windows on screen can be stitched
+export const WINDOW_IDS = Array.from({ length: MAX_IMAGES }, (_, i) => `stitch-${i + 1}`);
+export const [LEFT_WINDOW_ID, RIGHT_WINDOW_ID] = WINDOW_IDS;
+
+let nextRowId = 1;
+
+/** Add a point on one image; it fills the active row, or starts a new row if that image is already set there */
+export const addPoint = (imageIndex, point) => ({ imageIndex, point, type: ActionTypes.ADD_POINT });
 
 /** Move an existing point */
-export const movePoint = (pairId, side, point) => ({ pairId, point, side, type: ActionTypes.MOVE_POINT });
+export const movePoint = (rowId, imageIndex, point) => ({ imageIndex, point, rowId, type: ActionTypes.MOVE_POINT });
 
-/** Remove a pair (both points) */
-export const deletePair = (pairId) => ({ pairId, type: ActionTypes.DELETE_PAIR });
+/** Remove a row (all its points) */
+export const deleteRow = (rowId) => ({ rowId, type: ActionTypes.DELETE_ROW });
 
-/** Remove all pairs */
-export const clearPairs = () => ({ type: ActionTypes.CLEAR });
+/** Remove all rows */
+export const clearRows = () => ({ type: ActionTypes.CLEAR });
 
-/** Record which window and canvas are on each side ({ left, right } from getStitchingSides) */
-export const setSides = (sides) => ({ sides, type: ActionTypes.SET_SIDES });
+/** Make a row the one the next clicks fill */
+export const setActiveRow = (rowId) => ({ rowId, type: ActionTypes.SET_ACTIVE_ROW });
 
-const initialState = { pairs: [], sides: { left: null, right: null } };
+/** Record which window and canvas each image is ([{ windowId, canvasId }] from getStitchingImages) */
+export const setImages = (images) => ({ images, type: ActionTypes.SET_IMAGES });
 
-/** Whether the points on one side no longer belong to what that side shows */
-function sideChanged(previous, next) {
+const initialState = { activeRowId: null, images: [], rows: [] };
+
+/** Whether the points on one image no longer belong to what that window shows */
+function imageChanged(previous, next) {
   if (!previous) return false;
   if (previous.windowId !== next?.windowId) return true;
   // a window's canvas is unset until it loads, which is not a change
   return !!previous.canvasId && previous.canvasId !== next.canvasId;
 }
 
+/** Sets one image's point in a row */
+const withPoint = (row, imageIndex, point) => ({
+  ...row,
+  points: Object.assign([...row.points], { [imageIndex]: point }),
+});
+
 /**
- * Point pairs, in image pixel coordinates of each side's current image.
- * Pairs are numbered by their position in the list.
+ * Rows of matching points (one landmark per row), in image pixel coordinates of
+ * each image's current canvas. row.points[i] is the point on image i, or null.
+ * Rows are numbered by their position in the list.
  */
 export function stitchingReducer(state = initialState, action = {}) {
   switch (action.type) {
     case ActionTypes.ADD_POINT: {
-      const index = state.pairs.findIndex((p) => !p[action.side]);
-      if (index < 0) {
-        const pair = { id: nextPairId, left: null, right: null, [action.side]: action.point };
-        nextPairId += 1;
-        return { ...state, pairs: [...state.pairs, pair] };
+      const active = state.rows.find((r) => r.id === state.activeRowId);
+      if (active && !active.points[action.imageIndex]) {
+        return {
+          ...state,
+          rows: state.rows.map((r) => (r === active ? withPoint(r, action.imageIndex, action.point) : r)),
+        };
       }
-      return {
-        ...state,
-        pairs: state.pairs.map((p, i) => (i === index ? { ...p, [action.side]: action.point } : p)),
-      };
+      const row = withPoint({ id: nextRowId, points: Array(MAX_IMAGES).fill(null) }, action.imageIndex, action.point);
+      nextRowId += 1;
+      return { ...state, activeRowId: row.id, rows: [...state.rows, row] };
     }
     case ActionTypes.MOVE_POINT:
       return {
         ...state,
-        pairs: state.pairs.map((p) => (p.id === action.pairId ? { ...p, [action.side]: action.point } : p)),
+        rows: state.rows.map((r) => (r.id === action.rowId ? withPoint(r, action.imageIndex, action.point) : r)),
       };
-    case ActionTypes.DELETE_PAIR:
-      return { ...state, pairs: state.pairs.filter((p) => p.id !== action.pairId) };
+    case ActionTypes.DELETE_ROW:
+      return {
+        ...state,
+        activeRowId: state.activeRowId === action.rowId ? null : state.activeRowId,
+        rows: state.rows.filter((r) => r.id !== action.rowId),
+      };
+    case ActionTypes.SET_ACTIVE_ROW:
+      return { ...state, activeRowId: action.rowId };
     case ActionTypes.CLEAR:
-      return { ...state, pairs: [] };
-    case ActionTypes.SET_SIDES: {
-      const { sides } = action;
-      // points belong to the image that was showing; once either side changes, no pair is valid
-      const changed = sideChanged(state.sides.left, sides.left) || sideChanged(state.sides.right, sides.right);
-      return { ...state, pairs: changed ? [] : state.pairs, sides };
+      return { ...state, activeRowId: null, rows: [] };
+    case ActionTypes.SET_IMAGES: {
+      const { images } = action;
+      // points belong to the images that were showing; once any image changes, no row is valid
+      const changed = state.images.some((previous, i) => imageChanged(previous, images[i]));
+      return changed ? { ...state, activeRowId: null, images, rows: [] } : { ...state, images };
     }
     default:
       return state;
